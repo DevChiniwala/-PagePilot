@@ -1,0 +1,80 @@
+// PagePilot Database Schema
+// Prisma ORM with PostgreSQL (pgvector extension ready)
+
+generator client {
+  provider = "prisma-client-py"
+  binary_targets = ["native", "linux-musl"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String?
+  avatar_url    String?
+  google_id     String         @unique
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @updatedAt
+  sessions      Session[]
+  refresh_tokens RefreshToken[]
+
+  @@map("users")
+}
+
+model Session {
+  id          String     @id @default(cuid())
+  user_id     String
+  user        User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  url         String
+  title       String?
+  favicon     String?
+  mode        String     @default("fast")
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @updatedAt
+  messages    Message[]
+  summaries   Summary[]
+
+  @@index([user_id, created_at])
+  @@map("sessions")
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  session_id  String
+  session     Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  role        String   // "user" | "assistant" | "system"
+  content     String
+  metadata    Json?    // citations, mode, tokens, model_info
+  created_at  DateTime @default(now())
+
+  @@index([session_id, created_at])
+  @@map("messages")
+}
+
+model Summary {
+  id          String   @id @default(cuid())
+  session_id  String
+  session     Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  mode        String   // "fast" | "deep" | "eli5" | "expert"
+  content     String
+  created_at  DateTime @default(now())
+
+  @@unique([session_id, mode])
+  @@map("summaries")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  user_id   String
+  user      User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expires_at DateTime
+  created_at DateTime @default(now())
+
+  @@index([user_id])
+  @@map("refresh_tokens")
+}
