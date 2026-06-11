@@ -7,17 +7,11 @@ import type {
   Session,
   SessionListResponse,
   SessionDetail,
-  Message,
   SummarizeRequest,
-  SummarizeResponse,
   ChatRequest,
   StreamEvent,
   CreateSessionRequest,
-  Mode,
-  ApiError,
 } from '../types';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
 class ApiClient {
   private accessToken: string | null = null;
@@ -108,62 +102,45 @@ class ApiClient {
     return this.request<void>('DELETE', `/sessions/${id}`);
   }
 
-  // Summarize - returns async iterator for streaming
-  async *summarize(request: SummarizeRequest): AsyncGenerator<StreamEvent> {
+  // Summarize - streaming via events array
+  private streamRequest(path: string, body: unknown, onEvent: (event: StreamEvent) => void): Promise<StreamEvent | null> {
     const requestId = `${Date.now()}-${++this.requestId}`;
-    
-    return new Promise((resolve, reject) => {
-      const events: StreamEvent[] = [];
-      let resolved = false;
 
+    return new Promise((resolve, reject) => {
       const cleanup = () => {
         this.pendingRequests.delete(requestId);
       };
-
-      this.pendingRequests.set(requestId, {
-        resolve: (value) => {
-          if (!resolved) {
-            resolved = true;
-            cleanup();
-            resolve(value);
-          }
-        },
-        reject: (error) => {
-          if (!resolved) {
-            resolved = true;
-            cleanup();
-            reject(error);
-          }
-        },
-      });
 
       chrome.runtime.sendMessage({
         type: 'API_REQUEST',
         requestId,
         method: 'POST',
-        path: '/summarize',
-        body: request,
+        path,
+        body,
         headers: this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : undefined,
       });
 
-      // Set up listener for streaming events
+      let resolved = false;
+      let lastEvent: StreamEvent | null = null;
+
       const listener = (message: unknown) => {
         const msg = message as StreamEvent;
         if (msg.event && msg.data) {
-          events.push(msg);
-          
-          // Yield events through async generator
-          // We'll handle this by resolving with the events array
+          onEvent(msg);
+          lastEvent = msg;
           if (msg.event === 'done' || msg.event === 'error') {
-            cleanup();
-            resolve(events);
+            chrome.runtime.onMessage.removeListener(listener);
+            if (!resolved) {
+              resolved = true;
+              cleanup();
+              resolve(lastEvent);
+            }
           }
         }
       };
 
       chrome.runtime.onMessage.addListener(listener);
-      
-      // Timeout
+
       setTimeout(() => {
         chrome.runtime.onMessage.removeListener(listener);
         if (!resolved) {
@@ -172,69 +149,7 @@ class ApiClient {
           reject(new Error('Stream timeout'));
         }
       }, 120000);
-    }) as Promise<StreamEvent[]>;
-  }
-
-  // Chat - returns async iterator for streaming
-  async *chat(request: ChatRequest): AsyncGenerator<StreamEvent> {
-    const requestId = `${Date.now()}-${++this.requestId}`;
-    
-    return new Promise((resolve, reject) => {
-      const events: StreamEvent[] = [];
-      let resolved = false;
-
-      const cleanup = () => {
-        this.pendingRequests.delete(requestId);
-      };
-
-      this.pendingRequests.set(requestId, {
-        resolve: (value) => {
-          if (!resolved) {
-            resolved = true;
-            cleanup();
-            resolve(value);
-          }
-        },
-        reject: (error) => {
-          if (!resolved) {
-            resolved = true;
-            cleanup();
-            reject(error);
-          }
-        },
-      });
-
-      chrome.runtime.sendMessage({
-        type: 'API_REQUEST',
-        requestId,
-        method: 'POST',
-        path: '/chat',
-        body: request,
-        headers: this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : undefined,
-      });
-
-      const listener = (message: unknown) => {
-        const msg = message as StreamEvent;
-        if (msg.event && msg.data) {
-          events.push(msg);
-          if (msg.event === 'done' || msg.event === 'error') {
-            cleanup();
-            resolve(events);
-          }
-        }
-      };
-
-      chrome.runtime.onMessage.addListener(listener);
-      
-      setTimeout(() => {
-        chrome.runtime.onMessage.removeListener(listener);
-        if (!resolved) {
-          resolved = true;
-          cleanup();
-          reject(new Error('Stream timeout'));
-        }
-      }, 120000);
-    }) as Promise<StreamEvent[]>;
+    });
   }
 
   // Helper to consume streaming events
@@ -243,19 +158,11 @@ class ApiClient {
     onEvent: (event: StreamEvent) => void
   ): Promise<StreamEvent | null> {
     const isChat = 'message' in request;
-    const stream = isChat ? this.chat(request as ChatRequest) : this.summarize(request as SummarizeRequest);
-    
-    let lastEvent: StreamEvent | null = null;
-    
-    for await (const event of stream) {
-      onEvent(event);
-      lastEvent = event;
-      if (event.event === 'done' || event.event === 'error') {
-        break;
-      }
-    }
-    
-    return lastEvent;
+    return this.streamRequest(
+      isChat ? '/chat' : '/summarize',
+      request,
+      onEvent
+    );
   }
 }
 

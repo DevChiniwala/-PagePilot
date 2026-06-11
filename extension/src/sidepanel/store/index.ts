@@ -2,17 +2,15 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import type { StateStorage } from 'zustand/middleware';
 import type {
   User,
   Session,
-  SessionListResponse,
   SessionDetail,
   Message,
   SummarizeResponse,
-  SummaryCard,
   Mode,
   StreamEvent,
-  Citation,
 } from '../types';
 import { api } from '../services/api';
 import { messaging } from '../services/messaging';
@@ -22,6 +20,7 @@ interface AppState {
   user: User | null;
   accessToken: string | null;
   isAuthenticated: boolean;
+  authChecked: boolean;
   setAuth: (user: User | null, accessToken: string | null) => void;
   logout: () => Promise<void>;
   loginWithGoogle: () => void;
@@ -85,6 +84,7 @@ export const useStore = create<AppState>()(
       user: null,
       accessToken: null,
       isAuthenticated: false,
+      authChecked: false,
       
       setAuth: (user, accessToken) => {
         set({ user, accessToken, isAuthenticated: !!user && !!accessToken });
@@ -111,8 +111,10 @@ export const useStore = create<AppState>()(
       checkAuth: async () => {
         const { user, accessToken } = await messaging.getAuthState();
         if (user && accessToken) {
-          set({ user, accessToken, isAuthenticated: true });
+          set({ user, accessToken, isAuthenticated: true, authChecked: true });
           api.setAccessToken(accessToken);
+        } else {
+          set({ authChecked: true });
         }
       },
 
@@ -246,7 +248,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'pagepilot-store',
-      storage: createJSONStorage(() => chrome.storage.local),
+      storage: createJSONStorage(() => chromeStorageAdapter),
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
@@ -258,6 +260,27 @@ export const useStore = create<AppState>()(
     }
   )
 );
+
+// Chrome storage adapter for Zustand
+const chromeStorageAdapter: StateStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    return new Promise((resolve) => {
+      chrome.storage.local.get([name], (result) => {
+        resolve(result[name] ?? null);
+      });
+    });
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    return new Promise((resolve) => {
+      chrome.storage.local.set({ [name]: value }, resolve);
+    });
+  },
+  removeItem: async (name: string): Promise<void> => {
+    return new Promise((resolve) => {
+      chrome.storage.local.remove([name], resolve);
+    });
+  },
+};
 
 // Initialize auth on store creation
 if (typeof window !== 'undefined') {

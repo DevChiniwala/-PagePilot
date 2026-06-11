@@ -77,7 +77,7 @@ function saveAuthState() {
   chrome.storage.local.set({ pagepilot_auth: authState });
 }
 
-async function handleApiRequest(message: ApiRequest, sender: chrome.runtime.MessageSender): Promise<void> {
+async function handleApiRequest(message: ApiRequest, _sender: chrome.runtime.MessageSender): Promise<void> {
   const { requestId, method, path, body, headers } = message;
 
   try {
@@ -173,7 +173,8 @@ async function handleOAuthStart(): Promise<void> {
       interactive: true,
     });
 
-    const url = new URL(redirectUrl);
+    if (!redirectUrl) throw new Error('OAuth redirect URL is empty');
+    const url = new URL(redirectUrl as string);
     const code = url.searchParams.get('code');
 
     if (code) {
@@ -246,8 +247,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
 
     case 'GET_AUTH_STATE':
-      sendResponse(authState);
-      return true;
+      chrome.runtime.sendMessage({ type: 'AUTH_STATE', user: authState.user, accessToken: authState.accessToken });
+      break;
   }
 });
 

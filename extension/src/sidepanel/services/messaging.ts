@@ -3,14 +3,9 @@
 
 import type {
   ExtensionMessage,
-  ApiRequestMessage,
   ApiResponseMessage,
-  ExtractContentMessage,
   ExtractContentResponseMessage,
   AuthStateMessage,
-  OAuthStartMessage,
-  LogoutMessage,
-  GetAuthStateMessage,
   ExtractedContent,
   User,
 } from '../types';

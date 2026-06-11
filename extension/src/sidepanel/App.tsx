@@ -1,9 +1,9 @@
 // Main App Component for PagePilot Side Panel
 
-import React, { useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import {
-  Layout, Header, Sidebar, Dashboard, Chat, History, Settings,
+  Layout, Dashboard, Chat, History, Settings,
   LoginPrompt, LoadingScreen, ErrorToast
 } from './components';
 import { useStore } from './store';
@@ -12,14 +12,13 @@ import { messaging } from './services/messaging';
 function App() {
   const {
     isAuthenticated,
+    authChecked,
     user,
     checkAuth,
     currentView,
     setCurrentView,
     sidebarOpen,
     toggleSidebar,
-    isLoading,
-    error,
     setError,
     extractedContent,
     isExtracting,
@@ -44,7 +43,7 @@ function App() {
   }, [checkAuth]);
 
   // Show loading screen during initial auth check
-  if (!isAuthenticated && user === null) {
+  if (!authChecked) {
     return <LoadingScreen />;
   }
 
