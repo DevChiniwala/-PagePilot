@@ -1,6 +1,5 @@
 // Login Prompt Component for PagePilot Side Panel
 
-import React from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles, Brain, Zap, MessageSquare, Chrome } from 'lucide-react';
 

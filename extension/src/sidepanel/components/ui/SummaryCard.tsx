@@ -1,10 +1,9 @@
 // Premium Summary Card Components for PagePilot
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react';
 import {
   Sparkles, Brain, Target, BarChart3, Lightbulb,
-  Globe, Layers, ChevronDown, ChevronUp, Copy, Check,
+  Globe, Layers, Copy, Check,
   Maximize2, Minimize2
 } from 'lucide-react';
 import { cn } from '../../utils/formatting';
@@ -34,7 +33,7 @@ export function PremiumSummaryCard({
   card,
   index,
   totalCards,
-  modeIcon: ModeIcon,
+  modeIcon: _ModeIcon,
 }: PremiumSummaryCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);

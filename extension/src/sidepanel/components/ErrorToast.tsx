@@ -1,6 +1,6 @@
 // Error Toast Component for PagePilot Side Panel
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, X } from 'lucide-react';
 import { useStore } from '../store';

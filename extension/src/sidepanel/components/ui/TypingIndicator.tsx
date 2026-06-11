@@ -1,6 +1,5 @@
 // Typing Indicator Component for PagePilot
 
-import React from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../../utils/formatting';
 

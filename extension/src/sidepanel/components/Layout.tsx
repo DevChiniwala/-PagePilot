@@ -1,13 +1,12 @@
 // Layout Components for PagePilot Side Panel
 
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, MessageSquare, History, Settings, LogOut, ChevronLeft, ChevronRight,
-  User, Sparkles, Brain, Zap, HelpCircle
+  User, Sparkles
 } from 'lucide-react';
 import { cn } from '../utils/formatting';
-import { useStore } from '../store';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -57,7 +56,7 @@ export function Layout({
                 currentView={currentView}
                 onViewChange={onViewChange}
               />
-              <SidebarFooter user={user} onLogout={onLogout} />
+              <SidebarFooter user={user} />
             </motion.aside>
           )}
         </AnimatePresence>
@@ -130,7 +129,7 @@ function SidebarNav({
 }: {
   items: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }>; shortcut: string }>;
   currentView: string;
-  onViewChange: (view: string) => void;
+  onViewChange: (view: 'dashboard' | 'chat' | 'history' | 'settings') => void;
 }) {
   return (
     <nav className="flex-1 p-3 space-y-1 overflow-y-auto" role="navigation" aria-label="Main navigation">
@@ -163,10 +162,8 @@ function SidebarNav({
 
 function SidebarFooter({
   user,
-  onLogout,
 }: {
   user: { name?: string; email: string; avatarUrl?: string } | null;
-  onLogout: () => Promise<void>;
 }) {
   return (
     <div className="p-3 border-t border-border">

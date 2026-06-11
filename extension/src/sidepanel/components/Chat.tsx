@@ -1,21 +1,20 @@
 // Chat Interface for PagePilot - Enhanced with premium UI components
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import {
   Send, Bot, User, StopCircle, Copy, Check,
-  Sparkles, Quote, MessageSquare, Trash2, ChevronDown,
-  GripVertical, Eraser, Maximize2, Minimize2
+  Sparkles, Quote, MessageSquare, Trash2,
+  Maximize2, Minimize2
 } from 'lucide-react';
 import { cn, formatRelativeTime, getModeLabel } from '../utils/formatting';
 import { useStore } from '../store';
 import {
-  GlassCard, FloatingCard, AnimatedCard,
-  MarkdownRenderer, StreamingMarkdown,
-  TypingIndicator, StreamingCursor,
-  PremiumModeToggle, ModeIndicator,
+  GlassCard, FloatingCard,
+  MarkdownRenderer,
+  TypingIndicator,
+  ModeIndicator,
   SmartSuggestions,
-  IconButton,
 } from './ui';
 import type { Message, Mode, StreamEvent, Citation, ExtractedContent } from '../types';
 
@@ -27,7 +26,7 @@ interface ChatProps {
   setMode: (mode: Mode) => void;
 }
 
-export function Chat({ messages, isStreaming, onSendMessage, mode, setMode }: ChatProps) {
+export function Chat({ messages, isStreaming, onSendMessage, mode }: ChatProps) {
   const { currentSession, extractedContent } = useStore();
   const [inputValue, setInputValue] = useState('');
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
@@ -257,7 +256,7 @@ function ChatBubble({
   message,
   onCopy,
   selectedMessage,
-  isLastAssistant,
+  isLastAssistant: _isLastAssistant,
 }: {
   message: Message;
   onCopy: (text: string) => void;

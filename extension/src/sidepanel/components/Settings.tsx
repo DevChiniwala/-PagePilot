@@ -1,11 +1,10 @@
 // Settings Component for PagePilot Side Panel
 
-import React from 'react';
 import { motion } from 'framer-motion';
 import {
-  Settings as SettingsIcon, User, Shield, Bell, Palette,
-  Globe, Key, LogOut, ChevronRight, Sparkles, ExternalLink,
-  Terminal, Database, Cpu
+  Settings as SettingsIcon, User, Palette,
+  LogOut, Sparkles,
+  Terminal, Cpu
 } from 'lucide-react';
 import { useStore } from '../store';
 

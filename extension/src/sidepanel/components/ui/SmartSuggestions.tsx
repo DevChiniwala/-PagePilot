@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Lightning, MessageSquareText, Sparkles, Lightbulb,
+  Zap, MessageSquare, Sparkles, Lightbulb,
   Target, Search, Code, FileText, Quote, Hash,
   ArrowRight, X
 } from 'lucide-react';
@@ -47,7 +47,7 @@ export function SmartSuggestions({
     switch (mode) {
       case 'fast':
         base.push(
-          { id: 's1', icon: Lightning, text: 'Summarize this page', category: 'summary', query: 'Summarize the key points of this page' },
+          { id: 's1', icon: Zap, text: 'Summarize this page', category: 'summary', query: 'Summarize the key points of this page' },
           { id: 's2', icon: Target, text: 'What are the main takeaways?', category: 'summary', query: 'What are the main takeaways from this page?' },
           { id: 's3', icon: Sparkles, text: 'TL;DR version', category: 'summary', query: 'Give me a TL;DR of this page' },
         );
@@ -81,7 +81,7 @@ export function SmartSuggestions({
       if (headingText) {
         base.push({
           id: 'c1',
-          icon: MessageSquareText,
+          icon: MessageSquare,
           text: `About: ${headingText.slice(0, 40)}...`,
           category: 'explore',
           query: `Tell me more about ${headingText}`,
@@ -130,7 +130,7 @@ export function SmartSuggestions({
       <div className="px-4 py-2">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5">
-            <Lightning className="h-3 w-3 text-primary" />
+            <Zap className="h-3 w-3 text-primary" />
             <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
               Smart Suggestions
             </span>

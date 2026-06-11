@@ -6,23 +6,8 @@ import hljs from 'highlight.js';
 import 'highlight.js/styles/atom-one-dark.css';
 import { cn } from '../../utils/formatting';
 
-// Common languages to register
-const COMMON_LANGUAGES = [
-  'javascript', 'typescript', 'python', 'java', 'cpp', 'csharp',
-  'go', 'rust', 'ruby', 'php', 'swift', 'kotlin', 'scala',
-  'html', 'css', 'scss', 'xml', 'json', 'yaml', 'toml',
-  'sql', 'bash', 'powershell', 'dockerfile', 'nginx',
-  'markdown', 'plaintext',
-];
-
-// Pre-register common languages
-COMMON_LANGUAGES.forEach(lang => {
-  try {
-    hljs.registerLanguage(lang, require(`highlight.js/lib/languages/${lang}`));
-  } catch {
-    // Language not available, skip
-  }
-});
+// highlight.js languages are auto-registered when using the full import
+// Individual language registration is not needed when importing 'highlight.js' directly
 
 interface SyntaxHighlighterProps {
   code: string;

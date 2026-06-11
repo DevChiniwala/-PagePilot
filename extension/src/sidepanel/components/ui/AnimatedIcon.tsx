@@ -53,7 +53,6 @@ export function AnimatedIcon({
   delay = 0,
   className,
   size = 'md',
-  ...props
 }: AnimatedIconProps) {
   const child = React.isValidElement(children)
     ? React.cloneElement(children, {
@@ -62,15 +61,17 @@ export function AnimatedIcon({
     : children;
 
   if (!animation) {
-    return <div className={cn('inline-flex', className)} {...props}>{child}</div>;
+    return <div className={cn('inline-flex', className)}>{child}</div>;
   }
+
+  const { animate, transition } = animationVariants[animation];
 
   return (
     <motion.div
-      {...animationVariants[animation]}
-      style={{ animationDelay: `${delay}s` }}
+      animate={animate}
+      transition={transition}
+      style={{ animationDelay: `${delay}s` } as React.CSSProperties}
       className={cn('inline-flex', className)}
-      {...props}
     >
       {child}
     </motion.div>
@@ -148,7 +149,7 @@ export function IconButton({
         disabled && 'opacity-50 cursor-not-allowed',
         className
       )}
-      {...props}
+      {...(props as React.ComponentPropsWithoutRef<typeof motion.button>)}
     >
       {children}
     </motion.button>

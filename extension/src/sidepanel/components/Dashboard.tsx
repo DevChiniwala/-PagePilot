@@ -1,18 +1,18 @@
 // Dashboard Components for PagePilot Side Panel
 
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, Brain, Target, RefreshCw,
+  Sparkles, Brain, RefreshCw,
   Globe, Zap, Layers, ChevronDown, ChevronUp,
-  MessageSquare, Lightbulb
+  MessageSquare
 } from 'lucide-react';
 import { cn } from '../utils/formatting';
 import { useStore } from '../store';
 import {
   GlassCard, AnimatedCard, FloatingCard,
   PremiumSummaryCard, SummaryDashboardHeader, LoadingSummaryCards,
-  PremiumModeToggle, ComplexityBadge, ComplexityBar,
+  PremiumModeToggle,
   IconButton
 } from './ui';
 import type { Mode, StreamEvent, SummaryCard } from '../types';
@@ -29,7 +29,7 @@ interface DashboardProps {
   isExtracting: boolean;
   onExtract: (url: string) => Promise<void>;
   onSummarize: (sessionId: string, mode: Mode, onEvent: (event: StreamEvent) => void) => Promise<void>;
-  onChat: (sessionId: string, message: string, mode: Mode, onEvent: (event: StreamEvent) => void) => Promise<void>;
+  onChat?: (sessionId: string, message: string, mode: Mode, onEvent: (event: StreamEvent) => void) => Promise<void>;
 }
 
 export function Dashboard({
@@ -37,7 +37,6 @@ export function Dashboard({
   isExtracting,
   onExtract,
   onSummarize,
-  onChat,
 }: DashboardProps) {
   const { currentSession, summary, isSummarizing, mode: activeMode, setMode, setCurrentView, clearCurrentSession } = useStore();
   const [url, setUrl] = useState('');
@@ -51,11 +50,7 @@ export function Dashboard({
 
   const handleSummarize = useCallback(async () => {
     if (!currentSession) return;
-    await onSummarize(currentSession.session.id, activeMode, (event) => {
-      if (event.event === 'done' && event.data.cards) {
-        // Summary complete
-      }
-    });
+    await onSummarize(currentSession.session.id, activeMode, () => {});
   }, [currentSession, activeMode, onSummarize]);
 
   return (

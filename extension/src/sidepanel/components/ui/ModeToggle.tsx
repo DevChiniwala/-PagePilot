@@ -1,14 +1,13 @@
 // Premium Mode Toggle for PagePilot
 
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Zap, Brain, Lightbulb, Target,
   Sparkles
 } from 'lucide-react';
 import { cn } from '../../utils/formatting';
 import type { Mode } from '../../types';
-import { GlassCard } from './GlassCard';
 
 interface ModeToggleProps {
   activeMode: Mode;

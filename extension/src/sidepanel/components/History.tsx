@@ -1,10 +1,10 @@
 // History Component for PagePilot Side Panel
 
-import React, { useEffect, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   History as HistoryIcon, Globe, Trash2, ChevronRight,
-  Sparkles, MessageSquare, Clock, RefreshCw, Search
+  Clock, RefreshCw, Search
 } from 'lucide-react';
 import { cn, formatDate, getModeLabel } from '../utils/formatting';
 import { useStore } from '../store';
@@ -20,13 +20,12 @@ export function History() {
     if (sessions.length === 0) {
       fetchSessions(1);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSelect = useCallback(async (session: Session) => {
     try {
-      const detail = await import('../store').then(m => m.useStore.getState().selectSession);
-      // Fetch full session detail
-      const api = await import('../services/api').then(m => m.api);
+      const { api } = await import('../services/api');
       const sessionDetail = await api.getSession(session.id);
       selectSession(sessionDetail);
       setCurrentView('dashboard');

@@ -1,31 +1,34 @@
 // Markdown Renderer for PagePilot with syntax highlighting and sanitization
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { marked } from 'marked';
+import { Marked, Renderer } from 'marked';
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js';
 import { cn } from '../../utils/formatting';
 
-// Configure marked with highlight.js
-marked.setOptions({
-  gfm: true,
-  breaks: true,
-  highlight: function (code: string, lang: string) {
-    if (lang && hljs.getLanguage(lang)) {
-      try {
-        return hljs.highlight(code, { language: lang }).value;
-      } catch (e) {
-        console.warn('Highlight failed for language:', lang, e);
-      }
-    }
+// Create a marked instance with highlight.js
+const renderer = new Renderer();
+renderer.code = function (code: string, infostring: string | undefined, _escaped: boolean) {
+  let highlighted: string;
+  const lang = infostring || '';
+  if (lang && hljs.getLanguage(lang)) {
     try {
-      return hljs.highlightAuto(code).value;
-    } catch (e) {
-      return code;
+      highlighted = hljs.highlight(code, { language: lang }).value;
+    } catch {
+      highlighted = code;
     }
-  },
-} as marked.MarkedOptions);
+  } else {
+    try {
+      highlighted = hljs.highlightAuto(code).value;
+    } catch {
+      highlighted = code;
+    }
+  }
+  return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+};
+
+const parser = new Marked({ renderer, gfm: true, breaks: true });
 
 interface MarkdownRendererProps {
   content: string;
@@ -43,7 +46,7 @@ export function MarkdownRenderer({
   const rendered = useMemo(() => {
     if (!content) return '';
     try {
-      const rawHtml = marked.parse(content) as string;
+      const rawHtml = parser.parse(content) as string;
       const sanitized = DOMPurify.sanitize(rawHtml, {
         ALLOWED_TAGS: [
           'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
