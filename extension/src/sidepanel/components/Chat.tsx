@@ -1,15 +1,23 @@
-// Chat Interface for PagePilot Side Panel
+// Chat Interface for PagePilot - Enhanced with premium UI components
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send, Bot, User, StopCircle, Copy, Check,
-  Sparkles, RefreshCw, ChevronDown, Quote,
-  AlertCircle
+  Sparkles, Quote, MessageSquare, Trash2, ChevronDown,
+  GripVertical, Eraser, Maximize2, Minimize2
 } from 'lucide-react';
 import { cn, formatRelativeTime, getModeLabel } from '../utils/formatting';
 import { useStore } from '../store';
-import type { Message, Mode, StreamEvent, Citation } from '../types';
+import {
+  GlassCard, FloatingCard, AnimatedCard,
+  MarkdownRenderer, StreamingMarkdown,
+  TypingIndicator, StreamingCursor,
+  PremiumModeToggle, ModeIndicator,
+  SmartSuggestions,
+  IconButton,
+} from './ui';
+import type { Message, Mode, StreamEvent, Citation, ExtractedContent } from '../types';
 
 interface ChatProps {
   messages: Message[];
@@ -19,25 +27,18 @@ interface ChatProps {
   setMode: (mode: Mode) => void;
 }
 
-const SUGGESTIONS: Record<Mode, string[]> = {
-  fast: ['Summarize this page', 'What are the main points?', 'Give me a TL;DR'],
-  deep: ['Explain the key arguments', 'What are the implications?', 'Analyze the structure'],
-  eli5: ['Explain this simply', 'Give me an analogy', 'Why does this matter?'],
-  expert: ['What technical details matter?', 'How is this implemented?', 'What are the trade-offs?'],
-};
-
 export function Chat({ messages, isStreaming, onSendMessage, mode, setMode }: ChatProps) {
-  const { currentSession } = useStore();
+  const { currentSession, extractedContent } = useStore();
   const [inputValue, setInputValue] = useState('');
-  const [streamingContent, setStreamingContent] = useState('');
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(true);
+  const [inputExpanded, setInputExpanded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [showSuggestions, setShowSuggestions] = useState(true);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, streamingContent]);
+  }, [messages]);
 
   const handleSend = useCallback(async () => {
     if (!inputValue.trim() || !currentSession || isStreaming) return;
@@ -111,34 +112,43 @@ export function Chat({ messages, isStreaming, onSendMessage, mode, setMode }: Ch
     }
   };
 
+  const handleClear = () => {
+    useStore.setState({ messages: [] });
+    setShowSuggestions(true);
+  };
+
   if (!currentSession) {
     return (
-      <div className="flex-1 flex items-center justify-center p-4">
+      <FloatingCard className="flex-1 flex items-center justify-center p-6 m-4">
         <div className="text-center max-w-sm">
-          <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-foreground mb-2">No Page Selected</h3>
+          <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+            <MessageSquare className="h-7 w-7 text-muted-foreground" />
+          </div>
+          <h3 className="text-base font-semibold text-foreground mb-2">No Page Selected</h3>
           <p className="text-sm text-muted-foreground">
-            Go to Dashboard and analyze a URL first to start chatting.
+            Go to Dashboard and analyze a URL first to start chatting with the page content.
           </p>
         </div>
-      </div>
+      </FloatingCard>
     );
   }
 
   return (
     <div className="h-full flex flex-col">
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-4 scrollbar-hide">
+        {/* Empty State */}
         {messages.length === 0 && !isStreaming && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center max-w-sm">
-              <Sparkles className="h-8 w-8 text-primary mx-auto mb-3" />
-              <h3 className="text-sm font-semibold text-foreground mb-1">Chat with this page</h3>
-              <p className="text-xs text-muted-foreground mb-4">
-                Ask questions about the content. Mode: <span className="font-medium">{getModeLabel(mode)}</span>
-              </p>
+          <FloatingCard className="p-6 text-center mx-2 mt-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10 flex items-center justify-center mx-auto mb-3">
+              <Sparkles className="h-6 w-6 text-primary" />
             </div>
-          </div>
+            <h3 className="text-sm font-semibold text-foreground mb-1">Chat with this page</h3>
+            <p className="text-xs text-muted-foreground mb-1">
+              Ask questions about the content. Mode: <span className="font-medium">{getModeLabel(mode)}</span>
+            </p>
+            <ModeIndicator mode={mode} className="inline-flex mt-1" />
+          </FloatingCard>
         )}
 
         {messages.map((msg) => (
@@ -147,55 +157,96 @@ export function Chat({ messages, isStreaming, onSendMessage, mode, setMode }: Ch
             message={msg}
             onCopy={handleCopy}
             selectedMessage={selectedMessage}
+            isLastAssistant={!isStreaming && msg === messages[messages.length - 1] && msg.role === 'assistant'}
           />
         ))}
 
-        {isStreaming && <div ref={messagesEndRef} />}
+        {/* Streaming indicator */}
+        {isStreaming && (
+          <div className="flex gap-3">
+            <div className="w-8 h-8 rounded-xl bg-accent flex items-center justify-center shrink-0">
+              <Bot className="h-4 w-4 text-foreground" />
+            </div>
+            <div className="bg-card border border-border rounded-2xl rounded-tl-md px-4 py-3">
+              <TypingIndicator dots={3} size="md" />
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Smart Suggestions */}
-      <AnimatePresence>
-        {showSuggestions && messages.length === 0 && !isStreaming && (
-          <Suggestions
-            suggestions={SUGGESTIONS[mode]}
-            onSelect={(suggestion) => {
-              setInputValue(suggestion);
-              inputRef.current?.focus();
-            }}
-          />
-        )}
-      </AnimatePresence>
+      <SmartSuggestions
+        mode={mode}
+        content={extractedContent as ExtractedContent | null}
+        onSelect={(suggestion) => {
+          setInputValue(suggestion);
+          inputRef.current?.focus();
+        }}
+        onDismiss={() => setShowSuggestions(false)}
+        visible={showSuggestions && messages.length === 0 && !isStreaming}
+      />
 
       {/* Input Area */}
-      <div className="p-4 border-t border-border bg-card">
-        <div className="flex gap-2 items-end">
-          <textarea
-            ref={inputRef}
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask about this page..."
-            rows={1}
-            className="flex-1 min-h-[40px] max-h-[120px] px-3 py-2.5 rounded-lg border border-input bg-background text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-ring transition-all"
-            disabled={isStreaming}
-          />
-          <button
-            onClick={isStreaming ? () => {} : handleSend}
-            disabled={!inputValue.trim() && !isStreaming}
-            className={cn(
-              'h-10 w-10 rounded-lg flex items-center justify-center shrink-0 transition-all',
-              isStreaming
-                ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                : inputValue.trim()
-                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                  : 'bg-muted text-muted-foreground cursor-not-allowed'
+      <div className="border-t border-border bg-card/80 backdrop-blur-xl">
+        <div className="px-3 py-2">
+          <div className="flex items-center gap-2">
+            <textarea
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={`Ask about this page in ${getModeLabel(mode)} mode...`}
+              rows={inputExpanded ? 3 : 1}
+              className="flex-1 px-3 py-2.5 rounded-xl border border-input bg-background text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+              disabled={isStreaming}
+            />
+            <div className="flex flex-col gap-1">
+              <button
+                onClick={() => setInputExpanded(!inputExpanded)}
+                className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                title={inputExpanded ? 'Collapse' : 'Expand'}
+              >
+                {inputExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              </button>
+              <button
+                onClick={isStreaming ? () => {} : handleSend}
+                disabled={!inputValue.trim() && !isStreaming}
+                className={cn(
+                  'p-2 rounded-lg flex items-center justify-center transition-all',
+                  isStreaming
+                    ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                    : inputValue.trim()
+                      ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm'
+                      : 'bg-muted text-muted-foreground cursor-not-allowed'
+                )}
+              >
+                {isStreaming
+                  ? <StopCircle className="h-4 w-4" />
+                  : <Send className="h-4 w-4" />
+                }
+              </button>
+            </div>
+          </div>
+
+          {/* Bottom bar */}
+          <div className="flex items-center justify-between mt-1.5 px-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-muted-foreground">
+                <kbd className="px-1 py-0.5 rounded bg-muted font-mono">Shift</kbd> + <kbd className="px-1 py-0.5 rounded bg-muted font-mono">Enter</kbd> for newline
+              </span>
+            </div>
+            {messages.length > 0 && (
+              <button
+                onClick={handleClear}
+                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-destructive transition-colors"
+              >
+                <Trash2 className="h-3 w-3" />
+                Clear chat
+              </button>
             )}
-          >
-            {isStreaming
-              ? <StopCircle className="h-5 w-5" />
-              : <Send className="h-5 w-5" />
-            }
-          </button>
+          </div>
         </div>
       </div>
     </div>
@@ -206,10 +257,12 @@ function ChatBubble({
   message,
   onCopy,
   selectedMessage,
+  isLastAssistant,
 }: {
   message: Message;
   onCopy: (text: string) => void;
   selectedMessage: string | null;
+  isLastAssistant: boolean;
 }) {
   const isUser = message.role === 'user';
   const citations = message.metadata?.citations as Citation[] | undefined;
@@ -218,82 +271,74 @@ function ChatBubble({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
       className={cn('flex gap-3', isUser ? 'flex-row-reverse' : 'flex-row')}
     >
+      {/* Avatar */}
       <div className={cn(
-        'w-8 h-8 rounded-full flex items-center justify-center shrink-0',
-        isUser ? 'bg-primary/10' : 'bg-accent'
+        'w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm',
+        isUser
+          ? 'bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10'
+          : 'bg-gradient-to-br from-accent to-muted border border-border/50'
       )}>
         {isUser ? <User className="h-4 w-4 text-primary" /> : <Bot className="h-4 w-4 text-foreground" />}
       </div>
 
+      {/* Content */}
       <div className={cn('flex flex-col gap-1 max-w-[85%]', isUser ? 'items-end' : 'items-start')}>
-        <div className={cn(
-          'rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap',
-          isUser
-            ? 'bg-primary text-primary-foreground rounded-tr-md'
-            : 'bg-card border border-border rounded-tl-md'
-        )}>
-          {message.content}
-        </div>
+        {isUser ? (
+          <GlassCard variant="outlined" padding="md" className={cn(
+            'rounded-2xl rounded-tr-md',
+            'bg-primary text-primary-foreground'
+          )}>
+            <p className="text-sm leading-relaxed">{message.content}</p>
+          </GlassCard>
+        ) : (
+          <GlassCard variant="default" padding="md" className="rounded-2xl rounded-tl-md w-full">
+            <MarkdownRenderer
+              content={message.content}
+              animate={false}
+            />
+          </GlassCard>
+        )}
 
         {/* Citations */}
         {citations && citations.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1">
+          <div className="flex flex-wrap gap-1 mt-0.5 px-1">
             {citations.map((cite, i) => (
-              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-[10px] text-muted-foreground cursor-help" title={cite.text}>
+              <motion.span
+                key={i}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.05 }}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/50 text-[10px] text-muted-foreground cursor-default border border-border/30"
+                title={cite.text}
+              >
                 <Quote className="h-2.5 w-2.5" />
                 Chunk {cite.chunkId?.split('-').pop() || i + 1}
-              </span>
+              </motion.span>
             ))}
           </div>
         )}
 
-        <div className="flex items-center gap-2 px-1">
-          <span className="text-[10px] text-muted-foreground">
-            {formatRelativeTime(message.createdAt)}
-          </span>
-          <button
-            onClick={() => onCopy(message.content)}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-            title="Copy response"
-          >
-            {selectedMessage === message.content
-              ? <Check className="h-3 w-3 text-green-500" />
-              : <Copy className="h-3 w-3" />
-            }
-          </button>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-function Suggestions({
-  suggestions,
-  onSelect,
-}: {
-  suggestions: string[];
-  onSelect: (suggestion: string) => void;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 10 }}
-      className="px-4 py-2"
-    >
-      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Suggestions</p>
-      <div className="flex flex-wrap gap-1.5">
-        {suggestions.map((s, i) => (
-          <button
-            key={i}
-            onClick={() => onSelect(s)}
-            className="px-3 py-1.5 rounded-lg bg-accent text-xs text-foreground hover:bg-primary/10 hover:text-primary transition-colors"
-          >
-            {s}
-          </button>
-        ))}
+        {/* Actions */}
+        {!isUser && (
+          <div className="flex items-center gap-2 px-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="text-[10px] text-muted-foreground">
+              {formatRelativeTime(message.createdAt)}
+            </span>
+            <button
+              onClick={() => onCopy(message.content)}
+              className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+              title="Copy response"
+            >
+              {selectedMessage === message.content
+                ? <Check className="h-3 w-3 text-green-500" />
+                : <Copy className="h-3 w-3" />
+              }
+            </button>
+          </div>
+        )}
       </div>
     </motion.div>
   );
