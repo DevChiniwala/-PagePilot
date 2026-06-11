@@ -155,6 +155,8 @@ async function handleOAuthStart(): Promise<void> {
   try {
     const redirectUri = chrome.identity.getRedirectURL('oauth2');
     const clientId = chrome.runtime.getManifest().oauth2?.client_id;
+    console.log('[PAGEPILOT] redirectUri:', redirectUri);
+    console.log('[PAGEPILOT] clientId:', clientId);
     
     if (!clientId || clientId === '__GOOGLE_CLIENT_ID__') {
       throw new Error('Google Client ID not configured');
@@ -168,25 +170,43 @@ async function handleOAuthStart(): Promise<void> {
     authUrl.searchParams.set('access_type', 'offline');
     authUrl.searchParams.set('prompt', 'consent');
 
-    const redirectUrl = await chrome.identity.launchWebAuthFlow({
-      url: authUrl.toString(),
-      interactive: true,
-    });
+    console.log('[PAGEPILOT] redirectUri', redirectUri);
+    console.log('[PAGEPILOT] authUrl', authUrl.toString());
+    let redirectUrl;
+    try {
+      redirectUrl = await chrome.identity.launchWebAuthFlow({
+        url: authUrl.toString(),
+        interactive: true,
+      });
+      console.log('[PAGEPILOT] launchWebAuthFlow redirectUrl:', redirectUrl);
+    } catch (flowError) {
+      console.error('[PAGEPILOT] launchWebAuthFlow threw:', flowError);
+      console.error('[PAGEPILOT] flowError instanceof Error:', flowError instanceof Error);
+      console.error('[PAGEPILOT] flowError.message:', flowError instanceof Error ? flowError.message : '(not an Error)');
+      console.error('[PAGEPILOT] flowError.stack:', flowError instanceof Error ? flowError.stack : '(no stack)');
+      if (chrome.runtime.lastError) {
+        console.error('[PAGEPILOT] chrome.runtime.lastError:', chrome.runtime.lastError);
+      }
+      throw flowError;
+    }
 
     if (!redirectUrl) throw new Error('OAuth redirect URL is empty');
-    const url = new URL(redirectUrl as string);
+    const url = new URL(redirectUrl);
     const code = url.searchParams.get('code');
 
     if (code) {
       await exchangeCodeForTokens(code);
     }
   } catch (error) {
-    console.error('OAuth failed:', error);
+    console.error('[PAGEPILOT] OAuth failed - error:', error);
+    console.error('[PAGEPILOT] OAuth failed - instanceof Error:', error instanceof Error);
+    console.error('[PAGEPILOT] OAuth failed - message:', error instanceof Error ? error.message : '(not an Error)');
+    console.error('[PAGEPILOT] OAuth failed - stack:', error instanceof Error ? error.stack : '(no stack)');
     chrome.runtime.sendMessage({
       type: 'AUTH_STATE',
       user: null,
       accessToken: null,
-      error: error instanceof Error ? error.message : 'OAuth failed',
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 }
