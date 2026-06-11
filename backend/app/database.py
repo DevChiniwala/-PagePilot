@@ -1,19 +1,17 @@
 """Database connection and Prisma client management."""
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Optional
-
-from prisma import Prisma
-from prisma.errors import PrismaError
 
 from app.config import settings
+from prisma import Prisma
 
 
 class Database:
     """Database connection manager with Prisma client."""
 
     def __init__(self) -> None:
-        self._client: Optional[Prisma] = None
+        self._client: Prisma | None = None
         self._connected = False
 
     async def connect(self) -> None:

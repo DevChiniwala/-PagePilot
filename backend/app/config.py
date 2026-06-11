@@ -1,9 +1,8 @@
 """Application configuration using Pydantic Settings."""
 
 from functools import lru_cache
-from typing import List, Optional
 
-from pydantic import Field, HttpUrl
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -78,7 +77,7 @@ class Settings(BaseSettings):
     # ===========================================
     ENVIRONMENT: str = Field(default="development", description="Environment name")
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")
-    CORS_ORIGINS: List[str] = Field(
+    CORS_ORIGINS: list[str] = Field(
         default=["chrome-extension://*", "http://localhost:3000"],
         description="Allowed CORS origins",
     )
@@ -110,7 +109,7 @@ class Settings(BaseSettings):
         return self.ENVIRONMENT.lower() == "production"
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()
