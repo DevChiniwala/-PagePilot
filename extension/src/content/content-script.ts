@@ -110,7 +110,7 @@ function extractContent(): ExtractedContent {
 }
 
 // Listen for messages from background
-chrome.runtime.onMessage.addListener((message: ContentScriptMessage, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: ContentScriptMessage, _sender, sendResponse) => {
   if (message.type === 'EXTRACT_CONTENT') {
     try {
       const content = extractContent();
@@ -128,7 +128,7 @@ chrome.runtime.onMessage.addListener((message: ContentScriptMessage, sender, sen
 });
 
 // Expose extraction function globally for manual triggering
-(window as Window & { PagePilot: { extract: () => ExtractedContent } }).PagePilot = {
+(window as unknown as Window & { PagePilot: { extract: () => ExtractedContent } }).PagePilot = {
   extract: extractContent,
 };
 
