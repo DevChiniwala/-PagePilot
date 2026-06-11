@@ -10,7 +10,7 @@
     "128": "icons/icon-128.png"
   },
   "side_panel": {
-    "default_path": "sidepanel.html"
+    "default_path": "index.html"
   },
   "background": {
     "service_worker": "background.js",
@@ -36,7 +36,7 @@
     "https://api.pagepilot.ai/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; worker-src 'self' blob:;"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; worker-src 'self';"
   },
   "web_accessible_resources": [
     {
@@ -50,6 +50,5 @@
       "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/userinfo.profile"
     ]
-  },
-  "key": "__EXTENSION_KEY__"
+  }
 }
