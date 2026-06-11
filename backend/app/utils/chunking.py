@@ -2,9 +2,10 @@
 
 import re
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
-import tiktoken
+from typing import Any
+
 import structlog
+import tiktoken
 
 logger = structlog.get_logger(__name__)
 
@@ -18,7 +19,7 @@ class TextChunk:
     start_char: int
     end_char: int
     token_count: int
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 def get_tokenizer(model_name: str = "cl100k_base"):
@@ -32,7 +33,7 @@ def count_tokens(text: str, model_name: str = "cl100k_base") -> int:
     return len(tokenizer.encode(text))
 
 
-def split_by_headings(text: str) -> List[Dict[str, Any]]:
+def split_by_headings(text: str) -> list[dict[str, Any]]:
     """
     Split text by markdown headings, preserving hierarchy.
     Returns list of sections with level, title, content, and heading_path.
@@ -88,7 +89,7 @@ def chunk_text(
     chunk_overlap: int = 200,
     model_name: str = "cl100k_base",
     min_chunk_size: int = 100,
-) -> List[TextChunk]:
+) -> list[TextChunk]:
     """
     Split text into overlapping chunks using recursive character splitting
     with heading-aware boundaries.
@@ -159,7 +160,7 @@ def chunk_text_with_headings(
     chunk_size: int = 1000,
     chunk_overlap: int = 200,
     model_name: str = "cl100k_base",
-) -> List[TextChunk]:
+) -> list[TextChunk]:
     """
     Chunk text preserving heading structure.
     Each chunk includes heading path in metadata.
@@ -204,7 +205,7 @@ def create_chunks_from_extracted(
     extracted_content,
     chunk_size: int = 1000,
     chunk_overlap: int = 200,
-) -> List[TextChunk]:
+) -> list[TextChunk]:
     """Create chunks from ExtractedContent object."""
     from app.services.scraper import ExtractedContent
 

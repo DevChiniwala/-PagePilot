@@ -1,10 +1,11 @@
 """Vector store service using ChromaDB."""
 
+from dataclasses import dataclass
+from typing import Any
+
 import chromadb
-from chromadb.config import Settings as ChromaSettings
-from chromadb.utils import embedding_functions
-from typing import List, Dict, Any, Optional
 import structlog
+from chromadb.config import Settings as ChromaSettings
 
 from app.services.embeddings import EmbeddingService, get_embedding_service
 
@@ -17,7 +18,7 @@ class Chunk:
 
     id: str
     text: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -26,7 +27,7 @@ class SearchResult:
 
     id: str
     text: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
     distance: float
 
 
@@ -38,15 +39,15 @@ class VectorStoreService:
         host: str = "localhost",
         port: int = 8000,
         persist_dir: str = "./chroma_db",
-        embedding_service: Optional[EmbeddingService] = None,
+        embedding_service: EmbeddingService | None = None,
     ):
         self.host = host
         self.port = port
         self.persist_dir = persist_dir
         self.embedding_service = embedding_service or get_embedding_service()
 
-        self._client: Optional[chromadb.Client] = None
-        self._collections: Dict[str, chromadb.Collection] = {}
+        self._client: chromadb.Client | None = None
+        self._collections: dict[str, chromadb.Collection] = {}
 
     async def initialize(self) -> None:
         """Initialize ChromaDB client."""
@@ -98,8 +99,8 @@ class VectorStoreService:
     async def add_chunks(
         self,
         session_id: str,
-        chunks: List[Chunk],
-        metadata: Optional[Dict[str, Any]] = None,
+        chunks: list[Chunk],
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Add chunks to vector store."""
         if not chunks:
@@ -138,8 +139,8 @@ class VectorStoreService:
         session_id: str,
         query_text: str,
         k: int = 5,
-        filter_metadata: Optional[Dict[str, Any]] = None,
-    ) -> List[SearchResult]:
+        filter_metadata: dict[str, Any] | None = None,
+    ) -> list[SearchResult]:
         """Query vector store for similar chunks."""
         collection = self._get_or_create_collection(session_id)
 
@@ -174,8 +175,8 @@ class VectorStoreService:
         k: int = 5,
         fetch_k: int = 20,
         lambda_mult: float = 0.5,
-        filter_metadata: Optional[Dict[str, Any]] = None,
-    ) -> List[SearchResult]:
+        filter_metadata: dict[str, Any] | None = None,
+    ) -> list[SearchResult]:
         """Query with Maximal Marginal Relevance for diversity."""
         collection = self._get_or_create_collection(session_id)
 
@@ -262,7 +263,7 @@ class VectorStoreService:
         except Exception as e:
             logger.warning("Failed to delete session vectors", session_id=session_id, error=str(e))
 
-    async def get_collection_stats(self, session_id: str) -> Dict[str, Any]:
+    async def get_collection_stats(self, session_id: str) -> dict[str, Any]:
         """Get collection statistics."""
         collection = self._get_or_create_collection(session_id)
         count = collection.count()

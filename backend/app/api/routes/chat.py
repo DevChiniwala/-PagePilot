@@ -1,14 +1,14 @@
 """Chat routes with streaming RAG responses."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from prisma import Prisma
 
 from app.api.deps import get_current_user, get_db
 from app.config import get_settings
 from app.models.schemas import ChatRequest, ErrorResponse
 from app.services.rag_pipeline import RAGPipeline
 from app.services.vector_store import VectorStoreService
+from prisma import Prisma
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -47,7 +47,7 @@ async def chat(
             "session_id": request.session_id,
             "role": "user",
             "content": request.message,
-            "metadata={"mode": request.mode},
+            "metadata": {"mode": request.mode},
         }
     )
 
@@ -86,7 +86,7 @@ async def chat(
                             "session_id": request.session_id,
                             "role": "assistant",
                             "content": full_response,
-                            "metadata={
+                            "metadata": {
                                 "mode": request.mode,
                                 "citations": citations,
                                 "user_message_id": user_message.id,

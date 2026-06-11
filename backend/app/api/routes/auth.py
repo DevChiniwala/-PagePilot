@@ -1,14 +1,12 @@
 """Authentication routes - Google OAuth + JWT."""
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
-from prisma import Prisma
 import httpx
 import structlog
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.security import HTTPBearer
+from jose import JWTError
 
 from app.api.deps import get_current_user, get_db, get_settings
 from app.config import Settings
@@ -20,6 +18,7 @@ from app.models.schemas import (
     UserResponse,
 )
 from app.services.auth_service import AuthService
+from prisma import Prisma
 
 logger = structlog.get_logger(__name__)
 
@@ -147,7 +146,7 @@ async def refresh_access_token(
 
         # Check if refresh token exists in DB and not revoked
         stored_token = await db.refreshtoken.find_unique(where={"token": refresh_token})
-        if not stored_token or stored_token.expires_at < datetime.now(timezone.utc):
+        if not stored_token or stored_token.expires_at < datetime.now(UTC):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Refresh token expired or revoked",

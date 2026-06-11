@@ -1,23 +1,24 @@
 """Session management routes."""
 
-from typing import List, Optional
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from prisma import Prisma
 
 from app.api.deps import get_current_user, get_db
+from app.models.schemas import ChatMessage as ChatMessageSchema
 from app.models.schemas import (
     ErrorResponse,
     SessionCreate,
     SessionDetailResponse,
     SessionListResponse,
     SessionResponse,
+    SummaryResponse,
 )
-from app.models.schemas import ChatMessage as ChatMessageSchema
-from app.models.schemas import SummaryResponse
-from app.services.rag_pipeline import RAGPipeline
 from app.services.scraper import ScraperService
 from app.services.vector_store import VectorStoreService
+from prisma import Prisma
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
 

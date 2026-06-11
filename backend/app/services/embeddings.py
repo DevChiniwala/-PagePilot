@@ -1,11 +1,10 @@
 """Embeddings service using HuggingFace sentence-transformers."""
 
-import logging
-from typing import List, Optional
+from typing import Optional
 
+import structlog
 import torch
 from sentence_transformers import SentenceTransformer
-import structlog
 
 logger = structlog.get_logger(__name__)
 
@@ -14,7 +13,7 @@ class EmbeddingService:
     """Singleton service for generating text embeddings."""
 
     _instance: Optional["EmbeddingService"] = None
-    _model: Optional[SentenceTransformer] = None
+    _model: SentenceTransformer | None = None
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
@@ -24,7 +23,7 @@ class EmbeddingService:
     def __init__(
         self,
         model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
-        device: Optional[str] = None,
+        device: str | None = None,
         batch_size: int = 32,
     ):
         if self._model is not None:
@@ -62,7 +61,7 @@ class EmbeddingService:
             cls._instance = cls(*args, **kwargs)
         return cls._instance
 
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """
         Generate embeddings for a list of texts.
         Returns list of embedding vectors.
@@ -101,7 +100,7 @@ class EmbeddingService:
 
         return output
 
-    def embed_text(self, text: str) -> List[float]:
+    def embed_text(self, text: str) -> list[float]:
         """Generate embedding for a single text."""
         return self.embed_texts([text])[0]
 
@@ -120,7 +119,7 @@ class EmbeddingService:
 # Global instance getter
 def get_embedding_service(
     model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
-    device: Optional[str] = None,
+    device: str | None = None,
     batch_size: int = 32,
 ) -> EmbeddingService:
     """Get or create embedding service instance."""

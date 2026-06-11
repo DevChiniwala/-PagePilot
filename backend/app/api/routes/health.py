@@ -1,10 +1,10 @@
 """Health check routes."""
 
 from fastapi import APIRouter, Depends, Request
-from prisma import Prisma
 
 from app.api.deps import get_db
 from app.models.schemas import HealthResponse
+from prisma import Prisma
 
 router = APIRouter(tags=["Health"])
 

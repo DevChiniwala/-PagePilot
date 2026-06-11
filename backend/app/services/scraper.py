@@ -2,14 +2,13 @@
 
 import asyncio
 from dataclasses import dataclass
-from typing import List, Optional
 from urllib.parse import urlparse
 
+import httpx
+import structlog
 import trafilatura
 from bs4 import BeautifulSoup
 from readability import Document
-import httpx
-import structlog
 
 logger = structlog.get_logger(__name__)
 
@@ -22,10 +21,10 @@ class ExtractedContent:
     title: str
     text: str
     html: str
-    favicon: Optional[str] = None
-    meta_description: Optional[str] = None
-    meta_keywords: Optional[str] = None
-    headings: List[dict] = None
+    favicon: str | None = None
+    meta_description: str | None = None
+    meta_keywords: str | None = None
+    headings: list[dict] = None
     metadata: dict = None
 
     def __post_init__(self):
@@ -47,7 +46,7 @@ class ScraperService:
         self.timeout = timeout
         self.max_content_size = max_content_size
         self.user_agent = user_agent
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
@@ -237,7 +236,7 @@ class ScraperService:
             logger.error("All extraction methods failed", url=url, error=str(e))
             raise ValueError(f"Failed to extract content: {str(e)}")
 
-    async def extract_multiple(self, urls: List[str]) -> List[ExtractedContent]:
+    async def extract_multiple(self, urls: list[str]) -> list[ExtractedContent]:
         """Extract content from multiple URLs concurrently."""
         tasks = [self.extract(url) for url in urls]
         results = await asyncio.gather(*tasks, return_exceptions=True)

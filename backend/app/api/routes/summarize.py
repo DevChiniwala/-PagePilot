@@ -1,14 +1,14 @@
 """Summarization routes with streaming support."""
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from prisma import Prisma
 
 from app.api.deps import get_current_user, get_db
 from app.config import get_settings
-from app.models.schemas import ErrorResponse, SummarizeRequest, SummarizeResponse
+from app.models.schemas import ErrorResponse, SummarizeRequest
 from app.services.rag_pipeline import RAGPipeline
 from app.services.vector_store import VectorStoreService
+from prisma import Prisma
 
 router = APIRouter(prefix="/summarize", tags=["Summarization"])
 

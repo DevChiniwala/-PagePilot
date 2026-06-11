@@ -1,17 +1,19 @@
 """RAG Pipeline - Orchestrates retrieval and generation."""
 
 import json
-from typing import AsyncGenerator, Dict, Any, List, Optional
+from collections.abc import AsyncGenerator
+from typing import Any
+
 import structlog
 
-from app.services.vector_store import VectorStoreService, SearchResult
-from app.services.llm_service import LLMService, get_llm_service
-from app.utils.prompts import (
-    get_summary_prompt,
-    get_chat_prompt,
-    build_context_chunks,
-)
 from app.config import Settings
+from app.services.llm_service import LLMService, get_llm_service
+from app.services.vector_store import VectorStoreService
+from app.utils.prompts import (
+    build_context_chunks,
+    get_chat_prompt,
+    get_summary_prompt,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -23,7 +25,7 @@ class RAGPipeline:
         self,
         vector_store: VectorStoreService,
         settings: Settings,
-        llm: Optional[LLMService] = None,
+        llm: LLMService | None = None,
     ):
         self.vector_store = vector_store
         self.settings = settings
@@ -34,7 +36,7 @@ class RAGPipeline:
         session_id: str,
         mode: str,
         url: str,
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+    ) -> AsyncGenerator[dict[str, Any], None]:
         """
         Generate streaming summary for a session.
         Yields SSE-compatible events.
@@ -99,9 +101,9 @@ class RAGPipeline:
         self,
         session_id: str,
         message: str,
-        history: List[Dict[str, Any]],
+        history: list[dict[str, Any]],
         mode: str,
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+    ) -> AsyncGenerator[dict[str, Any], None]:
         """
         Generate streaming chat response with RAG.
         Yields SSE-compatible events.
@@ -176,7 +178,7 @@ class RAGPipeline:
                 "data": json.dumps({"error": str(e)}),
             }
 
-    def _parse_summary(self, response: str, mode: str) -> Dict[str, Any]:
+    def _parse_summary(self, response: str, mode: str) -> dict[str, Any]:
         """Parse structured summary from response."""
         # Try to extract sections from markdown
         sections = {}

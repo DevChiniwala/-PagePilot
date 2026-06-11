@@ -1,7 +1,5 @@
 """Prompt templates for different analysis modes."""
 
-from typing import Dict, List
-
 
 # Base system instruction for all modes
 SYSTEM_INSTRUCTION = """You are PagePilot, an AI web intelligence assistant. Your task is to analyze web page content and provide accurate, well-structured responses.
@@ -149,7 +147,7 @@ def get_chat_prompt(mode: str, context: str, query: str, history: str = "") -> s
     return prompt
 
 
-def build_context_chunks(chunks: List[Dict], max_chunks: int = 10) -> str:
+def build_context_chunks(chunks: list[dict], max_chunks: int = 10) -> str:
     """Build formatted context string from retrieved chunks."""
     lines = []
     for i, chunk in enumerate(chunks[:max_chunks]):

@@ -1,11 +1,9 @@
 """Pydantic schemas for API requests and responses."""
 
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional
-from uuid import UUID
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, HttpUrl
-
 
 # ===========================================
 # COMMON
@@ -16,7 +14,7 @@ class ErrorResponse(BaseModel):
 
     error: str
     message: str
-    details: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] | None = None
 
 
 class HealthResponse(BaseModel):
@@ -25,7 +23,7 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     environment: str
-    services: Dict[str, str] = {}
+    services: dict[str, str] = {}
 
 
 # ===========================================
@@ -36,7 +34,7 @@ class GoogleAuthRequest(BaseModel):
     """Google OAuth authorization code request."""
 
     code: str = Field(..., description="Authorization code from Google OAuth")
-    redirect_uri: Optional[str] = None
+    redirect_uri: str | None = None
 
 
 class TokenData(BaseModel):
@@ -63,8 +61,8 @@ class UserResponse(BaseModel):
 
     id: str
     email: str
-    name: Optional[str] = None
-    avatar_url: Optional[str] = None
+    name: str | None = None
+    avatar_url: str | None = None
     created_at: datetime
 
 
@@ -86,8 +84,8 @@ class SessionResponse(BaseModel):
 
     id: str
     url: str
-    title: Optional[str] = None
-    favicon: Optional[str] = None
+    title: str | None = None
+    favicon: str | None = None
     mode: str
     created_at: datetime
     updated_at: datetime
@@ -96,7 +94,7 @@ class SessionResponse(BaseModel):
 class SessionListResponse(BaseModel):
     """Paginated session list response."""
 
-    sessions: List[SessionResponse]
+    sessions: list[SessionResponse]
     total: int
     page: int
     page_size: int
@@ -107,8 +105,8 @@ class SessionDetailResponse(BaseModel):
     """Session with messages and summaries."""
 
     session: SessionResponse
-    messages: List["ChatMessage"] = []
-    summaries: List["SummaryResponse"] = []
+    messages: list["ChatMessage"] = []
+    summaries: list["SummaryResponse"] = []
 
 
 # ===========================================
@@ -129,8 +127,8 @@ class SummaryCard(BaseModel):
 
     title: str
     content: str
-    icon: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    icon: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class SummarizeResponse(BaseModel):
@@ -139,10 +137,10 @@ class SummarizeResponse(BaseModel):
     session_id: str
     mode: str
     url: str
-    title: Optional[str] = None
-    cards: List[SummaryCard]
+    title: str | None = None
+    cards: list[SummaryCard]
     generated_at: datetime
-    token_usage: Optional[Dict[str, int]] = None
+    token_usage: dict[str, int] | None = None
 
 
 class SummaryResponse(BaseModel):
@@ -165,7 +163,7 @@ class ChatMessage(BaseModel):
     id: str
     role: Literal["user", "assistant", "system"]
     content: str
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
     created_at: datetime
 
 
@@ -177,14 +175,14 @@ class ChatRequest(BaseModel):
     mode: Literal["fast", "deep", "eli5", "expert"] = Field(
         default="fast", description="Chat mode"
     )
-    history: Optional[List[ChatMessage]] = None
+    history: list[ChatMessage] | None = None
 
 
 class ChatResponse(BaseModel):
     """Chat response (non-streaming)."""
 
     message: ChatMessage
-    citations: List[Dict[str, Any]] = []
+    citations: list[dict[str, Any]] = []
 
 
 # ===========================================
@@ -195,18 +193,18 @@ class StreamEvent(BaseModel):
     """Server-Sent Event."""
 
     event: str
-    data: Dict[str, Any]
+    data: dict[str, Any]
 
 
 class StreamChunk(BaseModel):
     """Streaming content chunk."""
 
     type: Literal["content", "citation", "done", "error"]
-    delta: Optional[str] = None
-    content: Optional[str] = None
-    citations: Optional[List[Dict[str, Any]]] = None
-    metadata: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    delta: str | None = None
+    content: str | None = None
+    citations: list[dict[str, Any]] | None = None
+    metadata: dict[str, Any] | None = None
+    error: str | None = None
 
 
 # Forward references

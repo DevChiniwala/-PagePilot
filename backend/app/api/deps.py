@@ -1,16 +1,14 @@
 """FastAPI dependencies."""
 
-from typing import AsyncGenerator, Optional
 
 from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from prisma import Prisma
 
 from app.config import Settings, get_settings
 from app.database import db as db_instance
 from app.models.schemas import TokenData
-
+from prisma import Prisma
 
 # Security
 security = HTTPBearer(auto_error=False)
@@ -28,7 +26,7 @@ async def get_settings_dep() -> Settings:
 
 async def get_current_user(
     request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
     settings: Settings = Depends(get_settings_dep),
 ) -> TokenData:
     """Extract and validate current user from JWT token."""
@@ -65,7 +63,7 @@ async def get_current_user(
 
         return token_data
 
-    except JWTError as e:
+    except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
@@ -75,9 +73,9 @@ async def get_current_user(
 
 async def get_optional_user(
     request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
     settings: Settings = Depends(get_settings_dep),
-) -> Optional[TokenData]:
+) -> TokenData | None:
     """Get current user if authenticated, otherwise None."""
     try:
         return await get_current_user(request, credentials, settings)

@@ -2,8 +2,8 @@
 // Prisma ORM with PostgreSQL (pgvector extension ready)
 
 generator client {
-  provider = "prisma-client-py"
-  binary_targets = ["native", "linux-musl"]
+  provider             = "prisma-client-py"
+  recursive_type_depth = -1
 }
 
 datasource db {
