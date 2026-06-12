@@ -1,5 +1,0 @@
-INFO:     Started server process [304]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-{"error": "Could not connect to a Chroma server. Are you sure it is running?", "event": "HTTP ChromaDB failed, using embedded", "logger": "app.services.vector_store", "level": "warning", "timestamp": "2026-06-11T23:43:47.340089Z"}
