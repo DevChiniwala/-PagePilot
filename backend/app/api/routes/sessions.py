@@ -86,6 +86,8 @@ async def create_session(
 
     settings = get_settings()
 
+    logger.info("[POST /sessions] ENTER", url=str(session_data.url), user_id=current_user.sub)
+
     # Initialize services
     scraper = ScraperService()
     vector_store = VectorStoreService(
@@ -93,18 +95,20 @@ async def create_session(
         port=settings.CHROMA_PORT,
         persist_dir=settings.CHROMA_PERSIST_DIR,
     )
-    # Initialize vector store (loads embedding model)
+    logger.info("[POST /sessions] VectorStore initializing...")
     await vector_store.initialize()
+    logger.info("[POST /sessions] VectorStore initialized")
 
     try:
         import time
         # Scrape and clean content
-        logger.info("Scraping URL", url=str(session_data.url))
+        logger.info("[POST /sessions] Scraping URL", url=str(session_data.url))
         t0 = time.time()
         content = await scraper.extract(str(session_data.url))
-        logger.info("Scrape complete", url=str(session_data.url), text_len=len(content.text), elapsed=round(time.time() - t0, 2))
+        logger.info("[POST /sessions] Scrape complete", url=str(session_data.url), text_len=len(content.text), elapsed=round(time.time() - t0, 2))
 
         # Create session in database
+        logger.info("[POST /sessions] Creating DB record...")
         session = await db.session.create(
             data={
                 "user_id": current_user.sub,
@@ -114,28 +118,29 @@ async def create_session(
                 "mode": session_data.mode,
             }
         )
-        logger.info("Session DB record created", session_id=session.id)
+        logger.info("[POST /sessions] DB record created", session_id=session.id)
 
         # Chunk content
         from app.utils.chunking import chunk_text
 
+        logger.info("[POST /sessions] Chunking...")
         t1 = time.time()
         chunks = chunk_text(
             content.text,
             chunk_size=settings.CHUNK_SIZE,
             chunk_overlap=settings.CHUNK_OVERLAP,
         )
-        logger.info("Chunking complete", chunk_count=len(chunks), elapsed=round(time.time() - t1, 2))
+        logger.info("[POST /sessions] Chunking complete", chunk_count=len(chunks), elapsed=round(time.time() - t1, 2))
 
         # Generate embeddings and store in ChromaDB
-        logger.info("Indexing chunks", session_id=session.id, chunk_count=len(chunks))
+        logger.info("[POST /sessions] Indexing chunks", session_id=session.id, chunk_count=len(chunks))
         t2 = time.time()
         await vector_store.add_chunks(session.id, chunks, content.metadata)
-        logger.info("Embedding + storage complete", session_id=session.id, elapsed=round(time.time() - t2, 2))
+        logger.info("[POST /sessions] Embedding + storage complete", session_id=session.id, elapsed=round(time.time() - t2, 2))
 
-        logger.info("Session created", session_id=session.id, total_elapsed=round(time.time() - t0, 2))
+        logger.info("[POST /sessions] Session created, returning response", session_id=session.id, total_elapsed=round(time.time() - t0, 2))
 
-        return SessionResponse(
+        response = SessionResponse(
             id=session.id,
             url=session.url,
             title=session.title,
@@ -144,10 +149,11 @@ async def create_session(
             created_at=session.created_at,
             updated_at=session.updated_at,
         )
+        logger.info("[POST /sessions] Response ready", status=201)
+        return response
 
     except Exception as e:
-        logger.exception("Failed to create session", url=str(session_data.url))
-        # Cleanup on failure
+        logger.exception("[POST /sessions] Failed", url=str(session_data.url))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to process URL: {str(e)}",

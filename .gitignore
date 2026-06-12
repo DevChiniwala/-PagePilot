@@ -32,3 +32,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Runtime
+backend/chroma_db/
+backend/*.err
+backend/*.log

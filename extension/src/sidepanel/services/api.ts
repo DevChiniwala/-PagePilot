@@ -9,78 +9,73 @@ import type {
   CreateSessionRequest,
 } from '../types';
 
-const API_BASE = 'http://localhost:8000/api/v1';
-
+// API client routes through the background service worker for proper CORS bypass
 class ApiClient {
   private accessToken: string | null = null;
-  private refreshToken: string | null = null;
+  private requestId = 0;
+  private pendingRequests = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
+
   onAuthFailure: (() => void) | null = null;
 
-  setTokens(accessToken: string | null, refreshToken: string | null) {
+  constructor() {
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message.type === 'API_RESPONSE') {
+        const pending = this.pendingRequests.get(message.requestId);
+        if (pending) {
+          this.pendingRequests.delete(message.requestId);
+          if (message.error) {
+            if (message.status === 401) {
+              this.onAuthFailure?.();
+            }
+            pending.reject(new Error(message.error));
+          } else {
+            pending.resolve(message.data);
+          }
+        }
+      }
+
+      if (message.type === 'AUTH_STATE') {
+        this.accessToken = message.accessToken;
+      }
+    });
+  }
+
+  setTokens(accessToken: string | null, _refreshToken: string | null) {
     this.accessToken = accessToken;
-    this.refreshToken = refreshToken;
   }
 
   setAccessToken(token: string | null) {
     this.accessToken = token;
   }
 
-  private async refreshTokenCall(): Promise<boolean> {
-    if (!this.refreshToken) return false;
-    try {
-      const res = await fetch(`${API_BASE}/auth/refresh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.refreshToken}`,
-        },
-      });
-      if (!res.ok) return false;
-      const data = await res.json();
-      this.accessToken = data.access_token;
-      this.refreshToken = data.refresh_token || this.refreshToken;
-      return true;
-    } catch {
-      return false;
-    }
-  }
+  private async request<T>(method: string, path: string, body?: unknown, timeoutMs = 120000): Promise<T> {
+    const requestId = `${Date.now()}-${++this.requestId}`;
+    console.log(`[API] request ${method} ${path} timeout=${timeoutMs}ms`);
 
-  private async request<T>(method: string, path: string, body?: unknown, retries = 1): Promise<T> {
-    const url = `${API_BASE}${path}`;
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (this.accessToken) headers['Authorization'] = `Bearer ${this.accessToken}`;
-
-    const res = await fetch(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-
-    if (res.status === 401 && retries > 0) {
-      const refreshed = await this.refreshTokenCall();
-      if (refreshed) {
-        headers['Authorization'] = `Bearer ${this.accessToken}`;
-        const retryRes = await fetch(url, {
-          method,
-          headers,
-          body: body ? JSON.stringify(body) : undefined,
-        });
-        if (!retryRes.ok) {
-          const errData = await retryRes.json().catch(() => retryRes.text());
-          throw new Error(typeof errData === 'string' ? errData : errData.detail || errData.error || `HTTP ${retryRes.status}`);
-        }
-        return retryRes.json();
+    return new Promise((resolve, reject) => {
+      if (this.pendingRequests.has(requestId)) {
+        this.pendingRequests.delete(requestId);
       }
-      this.onAuthFailure?.();
-      throw new Error('Invalid or expired token');
-    }
 
-    if (!res.ok) {
-      const errData = await res.json().catch(() => res.text());
-      throw new Error(typeof errData === 'string' ? errData : errData.detail || errData.error || `HTTP ${res.status}`);
-    }
+      this.pendingRequests.set(requestId, { resolve: resolve as (value: unknown) => void, reject });
 
-    return res.json();
+      chrome.runtime.sendMessage({
+        type: 'API_REQUEST',
+        requestId,
+        method,
+        path,
+        body,
+        headers: this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : undefined,
+      });
+
+      setTimeout(() => {
+        if (this.pendingRequests.has(requestId)) {
+          this.pendingRequests.delete(requestId);
+          console.error(`[API] TIMEOUT ${method} ${path} after ${timeoutMs}ms`);
+          reject(new Error('Request timeout'));
+        }
+      }, timeoutMs);
+    });
   }
 
   // Auth
@@ -113,82 +108,56 @@ class ApiClient {
     await this.request('DELETE', `/sessions/${id}`);
   }
 
-  // Streaming via direct fetch + ReadableStream
+  // Streaming via SW
   async consumeStream(
     request: SummarizeRequest | ChatRequest,
     onEvent: (event: StreamEvent) => void
   ): Promise<StreamEvent | null> {
     const isChat = 'message' in request;
     const path = isChat ? '/chat' : '/summarize';
-    const url = `${API_BASE}${path}`;
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (this.accessToken) headers['Authorization'] = `Bearer ${this.accessToken}`;
+    const requestId = `${Date.now()}-${++this.requestId}`;
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(request),
-    });
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({
+        type: 'STREAM_REQUEST',
+        requestId,
+        method: 'POST',
+        path,
+        body: request,
+        headers: this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : undefined,
+      });
 
-    if (!res.ok) {
-      if (res.status === 401) {
-        const refreshed = await this.refreshTokenCall();
-        if (refreshed) {
-          headers['Authorization'] = `Bearer ${this.accessToken}`;
-          const retryRes = await fetch(url, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(request),
-          });
-          if (!retryRes.ok) throw new Error(`Stream request failed: ${retryRes.status}`);
-          return this.readStream(retryRes, onEvent);
-        }
-        throw new Error('Invalid or expired token');
-      }
-      throw new Error(`Stream request failed: ${res.status}`);
-    }
+      let resolved = false;
+      let lastEvent: StreamEvent | null = null;
 
-    return this.readStream(res, onEvent);
-  }
-
-  private async readStream(res: Response, onEvent: (event: StreamEvent) => void): Promise<StreamEvent | null> {
-    const reader = res.body?.getReader();
-    if (!reader) throw new Error('No response body');
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let lastEvent: StreamEvent | null = null;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split('\n\n');
-      buffer = parts.pop() || '';
-
-      for (const part of parts) {
-        const lines = part.split('\n');
-        let eventType = '';
-        let eventData = '';
-
-        for (const line of lines) {
-          if (line.startsWith('event: ')) eventType = line.slice(7).trim();
-          else if (line.startsWith('data: ')) eventData = line.slice(6).trim();
-        }
-
-        if (eventType && eventData) {
-          let parsed: unknown = eventData;
-          try { parsed = JSON.parse(eventData); } catch { /* use raw string */ }
-
-          const streamEvent: StreamEvent = { event: eventType as StreamEvent['event'], data: parsed };
+      const listener = (message: { type: string; requestId?: string; event?: string; data?: unknown }) => {
+        if (message.type === 'STREAM_EVENT' && message.requestId === requestId && message.event && message.data !== undefined) {
+          const streamEvent: StreamEvent = {
+            event: message.event as StreamEvent['event'],
+            data: message.data as StreamEvent['data'],
+          };
           onEvent(streamEvent);
           lastEvent = streamEvent;
-          if (eventType === 'done' || eventType === 'error') return lastEvent;
+          if (message.event === 'done' || message.event === 'error') {
+            chrome.runtime.onMessage.removeListener(listener);
+            if (!resolved) {
+              resolved = true;
+              resolve(lastEvent);
+            }
+          }
         }
-      }
-    }
-    return lastEvent;
+      };
+
+      chrome.runtime.onMessage.addListener(listener);
+
+      setTimeout(() => {
+        chrome.runtime.onMessage.removeListener(listener);
+        if (!resolved) {
+          resolved = true;
+          reject(new Error('Stream timeout'));
+        }
+      }, 120000);
+    });
   }
 }
 
