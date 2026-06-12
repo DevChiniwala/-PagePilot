@@ -26,6 +26,14 @@
 
 > Dashboard · Analysis Modes · Chat — all from the extension popup.
 
+Here is the dashboard below:
+
+<div align="center">
+  <img src="dashboard.png" alt="PagePilot Dashboard" width="860" />
+</div>
+
+<br/>
+
 | Dashboard | Analysis Mode |
 |---|---|
 | URL input + Analyze button | Fast · Deep · ELI5 · Expert modes |
