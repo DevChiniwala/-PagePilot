@@ -187,6 +187,7 @@ export interface AuthStateMessage extends ExtensionMessage {
   type: 'AUTH_STATE';
   user: User | null;
   accessToken: string | null;
+  refreshToken?: string | null;
   error?: string;
 }
 
@@ -200,4 +201,20 @@ export interface LogoutMessage extends ExtensionMessage {
 
 export interface GetAuthStateMessage extends ExtensionMessage {
   type: 'GET_AUTH_STATE';
+}
+
+export interface StreamRequestMessage extends ExtensionMessage {
+  type: 'STREAM_REQUEST';
+  requestId: string;
+  method: string;
+  path: string;
+  body?: unknown;
+  headers?: Record<string, string>;
+}
+
+export interface StreamEventMessage extends ExtensionMessage {
+  type: 'STREAM_EVENT';
+  requestId: string;
+  event: string;
+  data: unknown;
 }

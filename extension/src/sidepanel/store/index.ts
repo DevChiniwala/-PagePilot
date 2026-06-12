@@ -21,7 +21,7 @@ interface AppState {
   accessToken: string | null;
   isAuthenticated: boolean;
   authChecked: boolean;
-  setAuth: (user: User | null, accessToken: string | null) => void;
+  setAuth: (user: User | null, accessToken: string | null, refreshToken?: string | null) => void;
   logout: () => Promise<void>;
   loginWithGoogle: () => void;
   checkAuth: () => Promise<void>;
@@ -77,6 +77,31 @@ interface AppState {
 
 const MODES: Mode[] = ['fast', 'deep', 'eli5', 'expert'];
 
+// localStorage adapter MUST be defined before persist() uses it
+const localStorageAdapter: StateStorage = {
+  getItem: (name: string): string | null => {
+    try {
+      return localStorage.getItem(name);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name: string, value: string): void => {
+    try {
+      localStorage.setItem(name, value);
+    } catch {
+      // quota exceeded or unavailable
+    }
+  },
+  removeItem: (name: string): void => {
+    try {
+      localStorage.removeItem(name);
+    } catch {
+      // unavailable
+    }
+  },
+};
+
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -86,11 +111,9 @@ export const useStore = create<AppState>()(
       isAuthenticated: false,
       authChecked: false,
       
-      setAuth: (user, accessToken) => {
+      setAuth: (user, accessToken, refreshToken) => {
         set({ user, accessToken, isAuthenticated: !!user && !!accessToken });
-        if (accessToken) {
-          api.setAccessToken(accessToken);
-        }
+        api.setTokens(accessToken, refreshToken || null);
       },
 
       logout: async () => {
@@ -109,10 +132,10 @@ export const useStore = create<AppState>()(
       },
 
       checkAuth: async () => {
-        const { user, accessToken } = await messaging.getAuthState();
+        const { user, accessToken, refreshToken } = await messaging.getAuthState();
         if (user && accessToken) {
           set({ user, accessToken, isAuthenticated: true, authChecked: true });
-          api.setAccessToken(accessToken);
+          api.setTokens(accessToken, refreshToken);
         } else {
           set({ authChecked: true });
         }
@@ -144,14 +167,23 @@ export const useStore = create<AppState>()(
       },
 
       createSession: async (url, mode = 'fast') => {
+        console.log('[STORE] createSession start', { url, mode });
         set({ isLoading: true, error: null });
         try {
+          console.log('[STORE] calling api.createSession...');
+          const startTime = Date.now();
           const session = await api.createSession({ url, mode });
+          console.log(`[STORE] api.createSession done in ${Date.now() - startTime}ms`, { sessionId: session.id });
+          // Fetch full session detail and set as current
+          console.log('[STORE] fetching session detail...');
+          const detail = await api.getSession(session.id);
+          set({ currentSession: detail, messages: detail.messages, isLoading: false });
           // Refresh sessions list
           await get().fetchSessions(1);
-          set({ isLoading: false });
+          console.log('[STORE] createSession complete');
           return session;
         } catch (error) {
+          console.error('[STORE] createSession failed', error);
           set({ isLoading: false, error: error instanceof Error ? error.message : 'Failed to create session' });
           throw error;
         }
@@ -184,9 +216,23 @@ export const useStore = create<AppState>()(
       isSummarizing: false,
 
       summarize: async (sessionId, mode, onEvent) => {
-        set({ isSummarizing: true, error: null });
+        set({ isSummarizing: true, summary: null, error: null });
         try {
-          await api.consumeStream({ sessionId, mode }, onEvent);
+          await api.consumeStream({ sessionId, mode }, (event) => {
+            if (event.event === 'done' && event.data?.summary) {
+              const summary = event.data.summary;
+              set({
+                summary: {
+                  sessionId,
+                  mode,
+                  url: '',
+                  cards: summary.cards || summary.sections || [],
+                  generatedAt: new Date().toISOString(),
+                },
+              });
+            }
+            onEvent(event);
+          });
           set({ isSummarizing: false });
         } catch (error) {
           set({ isSummarizing: false, error: error instanceof Error ? error.message : 'Summarization failed' });
@@ -236,19 +282,21 @@ export const useStore = create<AppState>()(
       extractedContent: null,
       isExtracting: false,
 
-      extractContent: async (url) => {
+      extractContent: async (url): Promise<boolean> => {
         set({ isExtracting: true, error: null });
         try {
           const content = await messaging.extractContent(url);
           set({ extractedContent: content, isExtracting: false });
+          return true;
         } catch (error) {
           set({ isExtracting: false, error: error instanceof Error ? error.message : 'Content extraction failed' });
+          return false;
         }
       },
     }),
     {
       name: 'pagepilot-store',
-      storage: createJSONStorage(() => chromeStorageAdapter),
+      storage: createJSONStorage(() => localStorageAdapter),
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
@@ -260,27 +308,6 @@ export const useStore = create<AppState>()(
     }
   )
 );
-
-// Chrome storage adapter for Zustand
-const chromeStorageAdapter: StateStorage = {
-  getItem: async (name: string): Promise<string | null> => {
-    return new Promise((resolve) => {
-      chrome.storage.local.get([name], (result) => {
-        resolve(result[name] ?? null);
-      });
-    });
-  },
-  setItem: async (name: string, value: string): Promise<void> => {
-    return new Promise((resolve) => {
-      chrome.storage.local.set({ [name]: value }, resolve);
-    });
-  },
-  removeItem: async (name: string): Promise<void> => {
-    return new Promise((resolve) => {
-      chrome.storage.local.remove([name], resolve);
-    });
-  },
-};
 
 // Initialize auth on store creation
 if (typeof window !== 'undefined') {

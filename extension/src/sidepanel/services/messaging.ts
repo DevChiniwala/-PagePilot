@@ -60,9 +60,9 @@ class MessagingService {
   // Convenience methods for common message types
   
   // Auth
-  onAuthStateChange(handler: (user: User | null, accessToken: string | null, error?: string) => void): () => void {
+  onAuthStateChange(handler: (user: User | null, accessToken: string | null, error?: string, refreshToken?: string | null) => void): () => void {
     return this.on('AUTH_STATE', (message: AuthStateMessage) => {
-      handler(message.user, message.accessToken, message.error);
+      handler(message.user, message.accessToken, message.error, message.refreshToken);
     });
   }
 
@@ -74,18 +74,18 @@ class MessagingService {
     this.send({ type: 'LOGOUT' });
   }
 
-  async getAuthState(): Promise<{ user: User | null; accessToken: string | null }> {
+  async getAuthState(): Promise<{ user: User | null; accessToken: string | null; refreshToken: string | null }> {
     return new Promise((resolve) => {
       const unsubscribe = this.on('AUTH_STATE', (message: AuthStateMessage) => {
         unsubscribe();
-        resolve({ user: message.user, accessToken: message.accessToken });
+        resolve({ user: message.user, accessToken: message.accessToken, refreshToken: message.refreshToken ?? null });
       });
       this.send({ type: 'GET_AUTH_STATE' });
       
       // Fallback timeout
       setTimeout(() => {
         unsubscribe();
-        resolve({ user: null, accessToken: null });
+        resolve({ user: null, accessToken: null, refreshToken: null });
       }, 1000);
     });
   }

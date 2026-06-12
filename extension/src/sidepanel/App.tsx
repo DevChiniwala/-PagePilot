@@ -26,9 +26,9 @@ function App() {
 
   // Listen for auth state changes from background
   useEffect(() => {
-    const unsubscribe = messaging.onAuthStateChange((authUser, accessToken, authError) => {
+    const unsubscribe = messaging.onAuthStateChange((authUser, accessToken, authError, refreshToken) => {
       if (authUser && accessToken) {
-        useStore.getState().setAuth(authUser, accessToken);
+        useStore.getState().setAuth(authUser, accessToken, refreshToken);
         useStore.getState().fetchSessions(1);
       } else if (authError) {
         setError(authError);

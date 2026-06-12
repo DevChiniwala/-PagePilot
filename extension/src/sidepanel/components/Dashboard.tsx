@@ -27,7 +27,7 @@ interface DashboardProps {
     headings: Array<{ level: number; text: string; id: string }>;
   } | null;
   isExtracting: boolean;
-  onExtract: (url: string) => Promise<void>;
+  onExtract: (url: string) => Promise<boolean>;
   onSummarize: (sessionId: string, mode: Mode, onEvent: (event: StreamEvent) => void) => Promise<void>;
   onChat?: (sessionId: string, message: string, mode: Mode, onEvent: (event: StreamEvent) => void) => Promise<void>;
 }
@@ -44,9 +44,23 @@ export function Dashboard({
 
   const handleExtract = useCallback(async () => {
     if (!url || isExtracting) return;
+    console.log('[Dashboard] Analyze clicked', { url, activeMode });
     clearCurrentSession();
-    await onExtract(url);
-  }, [url, isExtracting, onExtract, clearCurrentSession]);
+    const success = await onExtract(url);
+    console.log('[Dashboard] Extraction result', { success });
+    if (success) {
+      try {
+        console.log('[Dashboard] Starting createSession...');
+        const session = await useStore.getState().createSession(url, activeMode);
+        if (session) {
+          console.log('[Dashboard] Session created, starting summarize...', { sessionId: session.id });
+          useStore.getState().summarize(session.id, activeMode, () => {});
+        }
+      } catch (err) {
+        console.error('[Dashboard] Session creation/summarize failed:', err);
+      }
+    }
+  }, [url, isExtracting, activeMode, onExtract, clearCurrentSession]);
 
   const handleSummarize = useCallback(async () => {
     if (!currentSession) return;
