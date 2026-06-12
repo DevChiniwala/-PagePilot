@@ -29,10 +29,12 @@
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
+    <!-- Pulse animation keyframes defined via animateTransform -->
     <style>
       .node-label { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 10px; fill: #c9d1d9; }
       .node-sublabel { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 8px; fill: #8b949e; }
       .title-text { font-family: 'Segoe UI', system-ui, sans-serif; font-weight: 700; }
+      .pulse-ring { transform-origin: center; }
     </style>
   </defs>
 
