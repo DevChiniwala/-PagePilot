@@ -1,9 +1,5 @@
-// API Client for PagePilot Extension
-// Communicates with background script which proxies to backend
-
 import type {
   User,
-  TokenResponse,
   Session,
   SessionListResponse,
   SessionDetail,
@@ -13,76 +9,89 @@ import type {
   CreateSessionRequest,
 } from '../types';
 
+const API_BASE = 'http://localhost:8000/api/v1';
+
 class ApiClient {
   private accessToken: string | null = null;
-  private requestId = 0;
-  private pendingRequests = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
+  private refreshToken: string | null = null;
 
-  constructor() {
-    // Listen for responses from background
-    chrome.runtime.onMessage.addListener((message) => {
-      if (message.type === 'API_RESPONSE') {
-        const pending = this.pendingRequests.get(message.requestId);
-        if (pending) {
-          this.pendingRequests.delete(message.requestId);
-          if (message.error) {
-            pending.reject(new Error(message.error));
-          } else {
-            pending.resolve(message.data);
-          }
-        }
-      }
-      
-      if (message.type === 'AUTH_STATE') {
-        this.accessToken = message.accessToken;
-      }
-    });
+  setTokens(accessToken: string | null, refreshToken: string | null) {
+    this.accessToken = accessToken;
+    this.refreshToken = refreshToken;
   }
 
   setAccessToken(token: string | null) {
     this.accessToken = token;
   }
 
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const requestId = `${Date.now()}-${++this.requestId}`;
-    
-    return new Promise((resolve, reject) => {
-      this.pendingRequests.set(requestId, { resolve: resolve as (value: unknown) => void, reject });
-      
-      chrome.runtime.sendMessage({
-        type: 'API_REQUEST',
-        requestId,
-        method,
-        path,
-        body,
-        headers: this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : undefined,
+  private async refreshTokenCall(): Promise<boolean> {
+    if (!this.refreshToken) return false;
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.refreshToken}`,
+        },
       });
+      if (!res.ok) return false;
+      const data = await res.json();
+      this.accessToken = data.access_token;
+      this.refreshToken = data.refresh_token || this.refreshToken;
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
-      // Timeout after 30 seconds
-      setTimeout(() => {
-        if (this.pendingRequests.has(requestId)) {
-          this.pendingRequests.delete(requestId);
-          reject(new Error('Request timeout'));
-        }
-      }, 30000);
+  private async request<T>(method: string, path: string, body?: unknown, retries = 1): Promise<T> {
+    const url = `${API_BASE}${path}`;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.accessToken) headers['Authorization'] = `Bearer ${this.accessToken}`;
+
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
     });
+
+    if (res.status === 401 && retries > 0) {
+      const refreshed = await this.refreshTokenCall();
+      if (refreshed) {
+        headers['Authorization'] = `Bearer ${this.accessToken}`;
+        const retryRes = await fetch(url, {
+          method,
+          headers,
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        if (!retryRes.ok) {
+          const errData = await retryRes.json().catch(() => retryRes.text());
+          throw new Error(typeof errData === 'string' ? errData : errData.detail || errData.error || `HTTP ${retryRes.status}`);
+        }
+        return retryRes.json();
+      }
+      throw new Error('Invalid or expired token');
+    }
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => res.text());
+      throw new Error(typeof errData === 'string' ? errData : errData.detail || errData.error || `HTTP ${res.status}`);
+    }
+
+    return res.json();
   }
 
   // Auth
-  async googleAuth(code: string): Promise<TokenResponse> {
-    return this.request<TokenResponse>('POST', '/auth/google', { code });
+  async googleAuth(code: string): Promise<{ access_token: string; refresh_token: string; user: User }> {
+    return this.request('POST', '/auth/google', { code });
   }
 
   async getCurrentUser(): Promise<User> {
     return this.request<User>('GET', '/auth/me');
   }
 
-  async refreshToken(): Promise<TokenResponse> {
-    return this.request<TokenResponse>('POST', '/auth/refresh');
-  }
-
   async logout(): Promise<void> {
-    return this.request<void>('POST', '/auth/logout');
+    await this.request('POST', '/auth/logout');
   }
 
   // Sessions
@@ -99,70 +108,85 @@ class ApiClient {
   }
 
   async deleteSession(id: string): Promise<void> {
-    return this.request<void>('DELETE', `/sessions/${id}`);
+    await this.request('DELETE', `/sessions/${id}`);
   }
 
-  // Summarize - streaming via events array
-  private streamRequest(path: string, body: unknown, onEvent: (event: StreamEvent) => void): Promise<StreamEvent | null> {
-    const requestId = `${Date.now()}-${++this.requestId}`;
-
-    return new Promise((resolve, reject) => {
-      const cleanup = () => {
-        this.pendingRequests.delete(requestId);
-      };
-
-      chrome.runtime.sendMessage({
-        type: 'API_REQUEST',
-        requestId,
-        method: 'POST',
-        path,
-        body,
-        headers: this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : undefined,
-      });
-
-      let resolved = false;
-      let lastEvent: StreamEvent | null = null;
-
-      const listener = (message: unknown) => {
-        const msg = message as StreamEvent;
-        if (msg.event && msg.data) {
-          onEvent(msg);
-          lastEvent = msg;
-          if (msg.event === 'done' || msg.event === 'error') {
-            chrome.runtime.onMessage.removeListener(listener);
-            if (!resolved) {
-              resolved = true;
-              cleanup();
-              resolve(lastEvent);
-            }
-          }
-        }
-      };
-
-      chrome.runtime.onMessage.addListener(listener);
-
-      setTimeout(() => {
-        chrome.runtime.onMessage.removeListener(listener);
-        if (!resolved) {
-          resolved = true;
-          cleanup();
-          reject(new Error('Stream timeout'));
-        }
-      }, 120000);
-    });
-  }
-
-  // Helper to consume streaming events
+  // Streaming via direct fetch + ReadableStream
   async consumeStream(
     request: SummarizeRequest | ChatRequest,
     onEvent: (event: StreamEvent) => void
   ): Promise<StreamEvent | null> {
     const isChat = 'message' in request;
-    return this.streamRequest(
-      isChat ? '/chat' : '/summarize',
-      request,
-      onEvent
-    );
+    const path = isChat ? '/chat' : '/summarize';
+    const url = `${API_BASE}${path}`;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.accessToken) headers['Authorization'] = `Bearer ${this.accessToken}`;
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(request),
+    });
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        const refreshed = await this.refreshTokenCall();
+        if (refreshed) {
+          headers['Authorization'] = `Bearer ${this.accessToken}`;
+          const retryRes = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(request),
+          });
+          if (!retryRes.ok) throw new Error(`Stream request failed: ${retryRes.status}`);
+          return this.readStream(retryRes, onEvent);
+        }
+        throw new Error('Invalid or expired token');
+      }
+      throw new Error(`Stream request failed: ${res.status}`);
+    }
+
+    return this.readStream(res, onEvent);
+  }
+
+  private async readStream(res: Response, onEvent: (event: StreamEvent) => void): Promise<StreamEvent | null> {
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let lastEvent: StreamEvent | null = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+
+      for (const part of parts) {
+        const lines = part.split('\n');
+        let eventType = '';
+        let eventData = '';
+
+        for (const line of lines) {
+          if (line.startsWith('event: ')) eventType = line.slice(7).trim();
+          else if (line.startsWith('data: ')) eventData = line.slice(6).trim();
+        }
+
+        if (eventType && eventData) {
+          let parsed: unknown = eventData;
+          try { parsed = JSON.parse(eventData); } catch { /* use raw string */ }
+
+          const streamEvent: StreamEvent = { event: eventType as StreamEvent['event'], data: parsed };
+          onEvent(streamEvent);
+          lastEvent = streamEvent;
+          if (eventType === 'done' || eventType === 'error') return lastEvent;
+        }
+      }
+    }
+    return lastEvent;
   }
 }
 
