@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = Field(default="development", description="Environment name")
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")
     CORS_ORIGINS: list[str] = Field(
-        default=["chrome-extension://*", "http://localhost:3000"],
+        default=["*"],
         description="Allowed CORS origins",
     )
 

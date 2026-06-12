@@ -2,11 +2,9 @@
 
 from datetime import UTC, datetime
 
-import httpx
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPBearer
-from jose import JWTError
 
 from app.api.deps import get_current_user, get_db, get_settings
 from app.config import Settings
@@ -82,6 +80,13 @@ async def google_auth(
             access_token=access_token,
             refresh_token=refresh_token,
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            user=UserResponse(
+                id=user.id,
+                email=user.email,
+                name=user.name,
+                avatar_url=user.avatar_url,
+                created_at=user.created_at,
+            ),
         )
 
     except httpx.HTTPStatusError as e:
@@ -140,48 +145,53 @@ async def refresh_access_token(
 
     auth_service = AuthService(db, settings)
 
-    try:
-        # Verify refresh token
-        token_data = auth_service.verify_token(refresh_token, token_type="refresh")
-
-        # Check if refresh token exists in DB and not revoked
-        stored_token = await db.refreshtoken.find_unique(where={"token": refresh_token})
-        if not stored_token or stored_token.expires_at < datetime.now(UTC):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Refresh token expired or revoked",
-            )
-
-        # Create new access token
-        new_access_token = auth_service.create_access_token(token_data.sub, token_data.email)
-
-        # Rotate refresh token (optional - create new one)
-        new_refresh_token = await auth_service.create_refresh_token(token_data.sub)
-
-        # Revoke old refresh token
-        await db.refreshtoken.delete(where={"token": refresh_token})
-
-        # Set new refresh token cookie
-        response.set_cookie(
-            key="refresh_token",
-            value=new_refresh_token,
-            httponly=True,
-            secure=not settings.is_development,
-            samesite="lax",
-            max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-        )
-
-        return TokenResponse(
-            access_token=new_access_token,
-            refresh_token=new_refresh_token,
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        )
-
-    except JWTError:
+    # Look up refresh token in DB (it's a random string, not a JWT)
+    stored_token = await db.refreshtoken.find_unique(where={"token": refresh_token})
+    if not stored_token or stored_token.expires_at < datetime.now(UTC):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token",
+            detail="Refresh token expired or revoked",
         )
+
+    # Get user associated with this token
+    user = await db.user.find_unique(where={"id": stored_token.user_id})
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+        )
+
+    # Create new access token
+    new_access_token = auth_service.create_access_token(user.id, user.email)
+
+    # Rotate refresh token (create new one, revoke old)
+    new_refresh_token = await auth_service.create_refresh_token(user.id)
+    await db.refreshtoken.delete(where={"token": refresh_token})
+
+    # Set new refresh token cookie
+    response.set_cookie(
+        key="refresh_token",
+        value=new_refresh_token,
+        httponly=True,
+        secure=not settings.is_development,
+        samesite="lax",
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+    )
+
+    user_resp = UserResponse(
+        id=user.id,
+        email=user.email,
+        name=user.name,
+        avatar_url=user.avatar_url,
+        created_at=user.created_at,
+    )
+
+    return TokenResponse(
+        access_token=new_access_token,
+        refresh_token=new_refresh_token,
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        user=user_resp,
+    )
 
 
 @router.post("/logout")
@@ -194,6 +204,8 @@ async def logout(
     refresh_token = request.cookies.get("refresh_token")
     if refresh_token:
         await db.refreshtoken.delete_many(where={"token": refresh_token})
-
     response.delete_cookie("refresh_token")
+
     return {"message": "Logged out successfully"}
+
+# reload-trigger-209406038

@@ -80,8 +80,12 @@ class AuthService:
             "grant_type": "authorization_code",
         }
 
+        logger.info("Exchanging Google code", redirect_uri=self.settings.GOOGLE_REDIRECT_URI)
+
         async with httpx.AsyncClient() as client:
             response = await client.post(token_url, data=data)
+            if not response.is_success:
+                logger.error("Google token exchange failed", status=response.status_code, body=response.text)
             response.raise_for_status()
             return response.json()
 
