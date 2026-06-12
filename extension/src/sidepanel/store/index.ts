@@ -132,6 +132,10 @@ export const useStore = create<AppState>()(
       },
 
       checkAuth: async () => {
+        api.onAuthFailure = () => {
+          set({ user: null, accessToken: null, isAuthenticated: false, authChecked: true });
+          api.setTokens(null, null);
+        };
         const { user, accessToken, refreshToken } = await messaging.getAuthState();
         if (user && accessToken) {
           set({ user, accessToken, isAuthenticated: true, authChecked: true });

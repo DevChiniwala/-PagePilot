@@ -14,6 +14,7 @@ const API_BASE = 'http://localhost:8000/api/v1';
 class ApiClient {
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
+  onAuthFailure: (() => void) | null = null;
 
   setTokens(accessToken: string | null, refreshToken: string | null) {
     this.accessToken = accessToken;
@@ -70,6 +71,7 @@ class ApiClient {
         }
         return retryRes.json();
       }
+      this.onAuthFailure?.();
       throw new Error('Invalid or expired token');
     }
 
