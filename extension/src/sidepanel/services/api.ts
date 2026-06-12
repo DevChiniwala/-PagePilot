@@ -16,8 +16,12 @@ class ApiClient {
   private pendingRequests = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
 
   onAuthFailure: (() => void) | null = null;
+  private keepalivePort: chrome.runtime.Port | null = null;
 
   constructor() {
+    // Open port to SW to keep it alive
+    this.keepalivePort = chrome.runtime.connect({ name: 'sidepanel-keepalive' });
+
     chrome.runtime.onMessage.addListener((message) => {
       if (message.type === 'API_RESPONSE') {
         const pending = this.pendingRequests.get(message.requestId);

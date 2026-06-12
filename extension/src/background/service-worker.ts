@@ -114,6 +114,18 @@ loadAuthState().catch((err) => {
   authLoadQueue.length = 0;
 });
 
+// Keep SW alive via port connections
+chrome.runtime.onConnect.addListener((port) => {
+  console.log('[SW] Port connected, keeping SW alive');
+  port.onDisconnect.addListener(() => {
+    console.log('[SW] Port disconnected');
+  });
+});
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function apiFetch(path: string, method: string, body?: unknown, extraHeaders?: Record<string, string>, retry = true): Promise<{ ok: boolean; status: number; data: unknown }> {
   const traceId = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   console.log(`[SW:${traceId}] apiFetch start`, { method, path, hasToken: !!authState.accessToken });
@@ -131,37 +143,45 @@ async function apiFetch(path: string, method: string, body?: unknown, extraHeade
     requestHeaders['Authorization'] = `Bearer ${authState.accessToken}`;
   }
 
-  console.log(`[SW:${traceId}] fetching ${method} ${url}`);
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method,
-      headers: requestHeaders,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    console.log(`[SW:${traceId}] fetch response`, { status: response.status, ok: response.ok });
-  } catch (fetchErr) {
-    console.error(`[SW:${traceId}] fetch threw`, fetchErr);
-    throw fetchErr;
-  }
-
-  if (response.status === 401 && retry) {
-    console.log(`[SW:${traceId}] got 401, attempting token refresh`);
-    const refreshOk = await tryRefreshToken();
-    if (refreshOk) {
-      console.log(`[SW:${traceId}] token refreshed, retrying request`);
-      return apiFetch(path, method, body, extraHeaders, false);
+  // Retry up to 3 times on network errors (SW termination, transient failures)
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    if (attempt > 1) {
+      console.log(`[SW:${traceId}] retry attempt ${attempt}/3, waiting 1s...`);
+      await sleep(1000);
     }
-    console.log(`[SW:${traceId}] token refresh failed`);
+    try {
+      console.log(`[SW:${traceId}] fetching ${method} ${url} (attempt ${attempt})`);
+      const response = await fetch(url, {
+        method,
+        headers: requestHeaders,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      console.log(`[SW:${traceId}] fetch response`, { status: response.status, ok: response.ok });
+
+      if (response.status === 401 && retry) {
+        console.log(`[SW:${traceId}] got 401, attempting token refresh`);
+        const refreshOk = await tryRefreshToken();
+        if (refreshOk) {
+          console.log(`[SW:${traceId}] token refreshed, retrying request`);
+          return apiFetch(path, method, body, extraHeaders, false);
+        }
+        console.log(`[SW:${traceId}] token refresh failed`);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      const data = contentType.includes('application/json')
+        ? await response.json()
+        : await response.text();
+
+      console.log(`[SW:${traceId}] response body read`, { contentType, dataType: typeof data, dataLength: typeof data === 'string' ? data.length : JSON.stringify(data).length });
+      return { ok: response.ok, status: response.status, data };
+    } catch (fetchErr) {
+      lastError = fetchErr;
+      console.error(`[SW:${traceId}] fetch threw (attempt ${attempt}/3)`, fetchErr);
+    }
   }
-
-  const contentType = response.headers.get('content-type') || '';
-  const data = contentType.includes('application/json')
-    ? await response.json()
-    : await response.text();
-
-  console.log(`[SW:${traceId}] response body read`, { contentType, dataType: typeof data, dataLength: typeof data === 'string' ? data.length : JSON.stringify(data).length });
-  return { ok: response.ok, status: response.status, data };
+  throw lastError;
 }
 
 async function tryRefreshToken(): Promise<boolean> {
