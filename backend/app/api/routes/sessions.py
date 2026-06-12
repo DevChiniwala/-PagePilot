@@ -97,9 +97,12 @@ async def create_session(
     await vector_store.initialize()
 
     try:
+        import time
         # Scrape and clean content
         logger.info("Scraping URL", url=str(session_data.url))
+        t0 = time.time()
         content = await scraper.extract(str(session_data.url))
+        logger.info("Scrape complete", url=str(session_data.url), text_len=len(content.text), elapsed=round(time.time() - t0, 2))
 
         # Create session in database
         session = await db.session.create(
@@ -111,21 +114,26 @@ async def create_session(
                 "mode": session_data.mode,
             }
         )
+        logger.info("Session DB record created", session_id=session.id)
 
         # Chunk content
         from app.utils.chunking import chunk_text
 
+        t1 = time.time()
         chunks = chunk_text(
             content.text,
             chunk_size=settings.CHUNK_SIZE,
             chunk_overlap=settings.CHUNK_OVERLAP,
         )
+        logger.info("Chunking complete", chunk_count=len(chunks), elapsed=round(time.time() - t1, 2))
 
         # Generate embeddings and store in ChromaDB
         logger.info("Indexing chunks", session_id=session.id, chunk_count=len(chunks))
+        t2 = time.time()
         await vector_store.add_chunks(session.id, chunks, content.metadata)
+        logger.info("Embedding + storage complete", session_id=session.id, elapsed=round(time.time() - t2, 2))
 
-        logger.info("Session created", session_id=session.id)
+        logger.info("Session created", session_id=session.id, total_elapsed=round(time.time() - t0, 2))
 
         return SessionResponse(
             id=session.id,

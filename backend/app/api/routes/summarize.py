@@ -32,6 +32,9 @@ async def summarize(
     Generate structured summary for a session.
     Returns Server-Sent Events (SSE) stream.
     """
+    import time
+    logger.info("Summarize request received", session_id=request.session_id, mode=request.mode)
+
     settings = get_settings()
 
     # Verify session ownership
@@ -40,7 +43,10 @@ async def summarize(
     )
 
     if not session:
+        logger.warning("Session not found for summarize", session_id=request.session_id)
         raise HTTPException(status_code=404, detail="Session not found")
+
+    logger.info("Session verified for summarize", session_id=request.session_id, url=session.url)
 
     # Initialize services
     vector_store = VectorStoreService(
@@ -49,21 +55,26 @@ async def summarize(
         persist_dir=settings.CHROMA_PERSIST_DIR,
     )
     await vector_store.initialize()
+    logger.info("Vector store initialized for summarize")
 
     rag = RAGPipeline(vector_store=vector_store, settings=settings)
 
     async def event_generator():
         """Generate SSE events for streaming summary."""
         try:
+            logger.info("Starting summarize stream", session_id=request.session_id)
             async for event in rag.summarize_stream(
                 session_id=request.session_id,
                 mode=request.mode,
                 url=session.url,
             ):
+                logger.info("SSE event", session_id=request.session_id, event_type=event['event'])
                 yield f"event: {event['event']}\ndata: {event['data']}\n\n"
         except Exception as e:
+            logger.exception("Summarize stream error", session_id=request.session_id)
             yield f"event: error\ndata: {{\"error\": \"{str(e)}\"}}\n\n"
 
+    logger.info("Returning StreamingResponse for summarize", session_id=request.session_id)
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",

@@ -40,7 +40,7 @@ class ScraperService:
     def __init__(
         self,
         timeout: int = 30,
-        max_content_size: int = 500_000,
+        max_content_size: int = 5_000_000,
         user_agent: str = "PagePilot/0.1 (+https://pagepilot.ai)",
     ):
         self.timeout = timeout
@@ -64,7 +64,7 @@ class ScraperService:
             await self._client.aclose()
 
     async def fetch_html(self, url: str) -> str:
-        """Fetch raw HTML from URL."""
+        """Fetch raw HTML from URL. Truncates oversized content."""
         client = await self._get_client()
         try:
             response = await client.get(url)
@@ -72,12 +72,24 @@ class ScraperService:
 
             content_length = response.headers.get("content-length")
             if content_length and int(content_length) > self.max_content_size:
-                raise ValueError(f"Content too large: {content_length} bytes")
+                logger.warning(
+                    "Content exceeds max size, truncating",
+                    url=url,
+                    reported_size=int(content_length),
+                    max_size=self.max_content_size,
+                )
 
             html = response.text
             if len(html) > self.max_content_size:
-                raise ValueError(f"Content too large: {len(html)} bytes")
+                logger.warning(
+                    "Truncating oversized content",
+                    url=url,
+                    raw_size=len(html),
+                    truncated_to=self.max_content_size,
+                )
+                html = html[:self.max_content_size]
 
+            logger.info("Fetched HTML", url=url, size=len(html))
             return html
 
         except httpx.HTTPStatusError as e:

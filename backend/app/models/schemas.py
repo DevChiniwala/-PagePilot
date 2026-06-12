@@ -47,15 +47,6 @@ class TokenData(BaseModel):
     type: Literal["access", "refresh"] = "access"
 
 
-class TokenResponse(BaseModel):
-    """Token pair response."""
-
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    expires_in: int  # seconds
-
-
 class UserResponse(BaseModel):
     """User profile response."""
 
@@ -64,6 +55,16 @@ class UserResponse(BaseModel):
     name: str | None = None
     avatar_url: str | None = None
     created_at: datetime
+
+
+class TokenResponse(BaseModel):
+    """Token pair response."""
+
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int  # seconds
+    user: UserResponse
 
 
 # ===========================================
